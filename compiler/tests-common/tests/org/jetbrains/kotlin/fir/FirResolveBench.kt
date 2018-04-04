@@ -4,6 +4,7 @@
  */
 package org.jetbrains.kotlin.fir
 
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.types.ConeClassErrorType
 import org.jetbrains.kotlin.fir.types.ConeKotlinErrorType
@@ -12,6 +13,7 @@ import org.jetbrains.kotlin.fir.types.FirType
 import org.jetbrains.kotlin.fir.visitors.FirTransformer
 import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.psiUtil.startOffset
 import kotlin.reflect.KClass
 import kotlin.system.measureNanoTime
 
@@ -48,6 +50,13 @@ fun doFirResolveTestBench(firFiles: List<FirFile>, transformers: List<FirTransfo
         println("SUCCESS!")
     } finally {
 
+        var implicitTypes = 0
+
+
+        val errorTypesReports = mutableMapOf<String, String>()
+
+        val fileDocumentManager = FileDocumentManager.getInstance()
+
         firFiles.forEach {
             it.accept(object : FirVisitorVoid() {
                 override fun visitElement(element: FirElement) {
@@ -62,17 +71,41 @@ fun doFirResolveTestBench(firFiles: List<FirFile>, transformers: List<FirTransfo
                     resolvedTypes++
                     val type = resolvedType.type
                     if (type is ConeKotlinErrorType || type is ConeClassErrorType) {
-                        errorTypes++
+                        if (resolvedType.psi == null) {
+                            implicitTypes++
+                        } else {
+                            val psi = resolvedType.psi!!
+                            val problem = "$type with psi `${psi.text}`"
+                            val document = try {
+                                fileDocumentManager.getDocument(psi.containingFile.virtualFile)
+                            } catch (t: Throwable) {
+                                throw Exception("for file ${psi.containingFile}", t)
+                            }
+                            val line = document?.getLineNumber(psi.startOffset) ?: 0
+                            val char = psi.startOffset - (document?.getLineStartOffset(line) ?: 0)
+                            val report = "e: ${psi.containingFile?.virtualFile?.path}: ($line:$char): $problem"
+                            errorTypesReports[problem] = report
+                            errorTypes++
+                        }
                     }
                 }
             })
         }
+
+        errorTypesReports.forEach {
+            println(it.value)
+        }
+
 
         println("TOTAL LENGTH: $totalLength")
         println("UNRESOLVED TYPES: $unresolvedTypes")
         println("RESOLVED TYPES: $resolvedTypes")
         println("GOOD TYPES: ${resolvedTypes - errorTypes}")
         println("ERROR TYPES: $errorTypes")
+        println("IMPLICIT TYPES: $implicitTypes")
+        println("UNIQUE ERROR TYPES: ${errorTypesReports.size}")
+
+
 
         timePerTransformer.forEach { (transformer, time) ->
             val counter = counterPerTransformer[transformer]!!
