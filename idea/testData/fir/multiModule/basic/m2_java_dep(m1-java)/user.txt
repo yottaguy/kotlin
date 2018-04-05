@@ -1,0 +1,4 @@
+FILE: user.kt
+    public final function foo(hello: R|error: Unresolved imported symbol: hello/Hello|): R|kotlin/String| {
+        STUB
+    }
