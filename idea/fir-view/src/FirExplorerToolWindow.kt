@@ -30,7 +30,6 @@ import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.FirSessionBase
 import org.jetbrains.kotlin.fir.builder.RawFirBuilder
-import org.jetbrains.kotlin.idea.caches.project.getModuleInfoByVirtualFile
 import org.jetbrains.kotlin.idea.util.application.runReadAction
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.psiUtil.endOffset
@@ -76,7 +75,7 @@ class FirExplorerToolWindow(private val project: Project, private val toolWindow
                     if (file != null) {
                         val firFile = runReadAction {
                             RawFirBuilder(
-                                object : FirSessionBase(getModuleInfoByVirtualFile(project, file.virtualFile)!!) {}
+                                object : FirSessionBase() {}
                             ).buildFirFile(file)
                         }
                         runInEdt {
