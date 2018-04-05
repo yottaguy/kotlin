@@ -5,6 +5,7 @@
 
 package org.jetbrains.kotlin.fir.java
 
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.analyzer.ModuleInfo
 import org.jetbrains.kotlin.fir.FirModuleBasedSession
@@ -14,16 +15,16 @@ import org.jetbrains.kotlin.fir.resolve.impl.FirCompositeSymbolProvider
 import org.jetbrains.kotlin.fir.resolve.impl.FirLibrarySymbolProviderImpl
 import org.jetbrains.kotlin.fir.service
 
-class FirJavaModuleBasedSession(moduleInfo: ModuleInfo, project: Project) : FirModuleBasedSession(moduleInfo) {
+class FirJavaModuleBasedSession(moduleInfo: ModuleInfo, project: Project, module: Module? = null) : FirModuleBasedSession(moduleInfo) {
     init {
         registerComponent(
             FirSymbolProvider::class,
             FirCompositeSymbolProvider(
                 listOf(
                     service<FirProvider>(),
-                    JavaSourceSymbolProvider(project),
+                    JavaSourceSymbolProvider(project, module),
                     FirLibrarySymbolProviderImpl(this),
-                    JavaLibrariesSymbolProvider(project)
+                    JavaLibrariesSymbolProvider(project, module)
                 )
             )
         )

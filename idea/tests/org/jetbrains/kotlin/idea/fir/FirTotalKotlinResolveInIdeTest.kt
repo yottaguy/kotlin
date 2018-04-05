@@ -3,7 +3,7 @@
  * that can be found in the license/LICENSE.txt file.
  */
 
-package org.jetbrains.kotlin.idea
+package org.jetbrains.kotlin.idea.fir
 
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.vfs.VfsUtil
@@ -19,6 +19,7 @@ import org.jetbrains.kotlin.fir.resolve.FirProvider
 import org.jetbrains.kotlin.fir.resolve.impl.FirProviderImpl
 import org.jetbrains.kotlin.fir.resolve.transformers.FirTotalResolveTransformer
 import org.jetbrains.kotlin.fir.service
+import org.jetbrains.kotlin.idea.KotlinFileType
 import org.jetbrains.kotlin.idea.caches.project.productionSourceInfo
 import org.jetbrains.kotlin.psi.KtFile
 import java.io.File
@@ -50,7 +51,7 @@ class FirTotalKotlinResolveInIdeTest : ModuleTestCase() {
 
     }
 
-    private fun createSession() = FirJavaModuleBasedSession(module.productionSourceInfo()!!, project)
+    private fun createSession() = FirJavaModuleBasedSession(module.productionSourceInfo()!!, project, module)
 
     fun testTotalKotlin() {
         val session = createSession()

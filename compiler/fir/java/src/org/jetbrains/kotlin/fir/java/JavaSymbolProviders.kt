@@ -5,6 +5,7 @@
 
 package org.jetbrains.kotlin.fir.java
 
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.ProjectScope
@@ -16,7 +17,7 @@ import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.resolve.jvm.KotlinJavaPsiFacade
 
-abstract class AbstractJavaSymbolProvider(val project: Project) : FirSymbolProvider {
+abstract class AbstractJavaSymbolProvider(val project: Project, val module: Module?) : FirSymbolProvider {
 
     protected abstract val searchScope: GlobalSearchScope
 
@@ -51,17 +52,17 @@ abstract class AbstractJavaSymbolProvider(val project: Project) : FirSymbolProvi
     }
 }
 
-class JavaSourceSymbolProvider(project: Project) : AbstractJavaSymbolProvider(project) {
+class JavaSourceSymbolProvider(project: Project, module: Module? = null) : AbstractJavaSymbolProvider(project, module) {
     override val searchScope: GlobalSearchScope =
-        ProjectScope.getProjectScope(project)
+        module?.moduleContentScope ?: ProjectScope.getProjectScope(project)
 
     override val doesLookupInFir: Boolean
         get() = true
 }
 
-class JavaLibrariesSymbolProvider(project: Project) : AbstractJavaSymbolProvider(project) {
+class JavaLibrariesSymbolProvider(project: Project, module: Module? = null) : AbstractJavaSymbolProvider(project, module) {
     override val searchScope: GlobalSearchScope =
-        ProjectScope.getLibrariesScope(project)
+        module?.moduleWithLibrariesScope?.intersectWith(ProjectScope.getLibrariesScope(project)) ?: ProjectScope.getLibrariesScope(project)
 
     override val doesLookupInFir: Boolean
         get() = false
