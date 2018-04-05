@@ -15,10 +15,7 @@ import com.intellij.psi.tree.IElementType
 import com.intellij.util.PathUtil
 import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.cli.common.script.CliScriptDefinitionProvider
-import org.jetbrains.kotlin.fir.FirElement
-import org.jetbrains.kotlin.fir.FirRenderer
-import org.jetbrains.kotlin.fir.FirSessionBase
-import org.jetbrains.kotlin.fir.FirTestModuleInfo
+import org.jetbrains.kotlin.fir.*
 import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.types.FirType
 import org.jetbrains.kotlin.fir.visitors.CompositeTransformResult
@@ -73,7 +70,7 @@ abstract class AbstractRawFirBuilderTestCase : KtParsingTestCase(
     }
 
     protected fun KtFile.toFirFile(): FirFile =
-        RawFirBuilder(object : FirSessionBase(FirTestModuleInfo()) {}).buildFirFile(this)
+        RawFirBuilder(object : FirSessionBase() {}).buildFirFile(this)
 
     private fun FirElement.traverseChildren(result: MutableSet<FirElement> = hashSetOf()): MutableSet<FirElement> {
         if (!result.add(this)) {

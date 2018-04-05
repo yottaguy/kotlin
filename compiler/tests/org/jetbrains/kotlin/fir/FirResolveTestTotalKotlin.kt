@@ -9,12 +9,9 @@ import com.intellij.testFramework.TestDataPath
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
 import org.jetbrains.kotlin.fir.builder.RawFirBuilder
-import org.jetbrains.kotlin.fir.java.JavaSymbolProvider
+import org.jetbrains.kotlin.fir.java.FirJavaModuleBasedSession
 import org.jetbrains.kotlin.fir.resolve.FirProvider
-import org.jetbrains.kotlin.fir.resolve.FirQualifierResolver
-import org.jetbrains.kotlin.fir.resolve.FirSymbolProvider
-import org.jetbrains.kotlin.fir.resolve.FirTypeResolver
-import org.jetbrains.kotlin.fir.resolve.impl.*
+import org.jetbrains.kotlin.fir.resolve.impl.FirProviderImpl
 import org.jetbrains.kotlin.fir.resolve.transformers.FirTotalResolveTransformer
 import org.jetbrains.kotlin.test.ConfigurationKind
 import org.jetbrains.kotlin.test.KotlinTestUtils
@@ -40,20 +37,7 @@ class FirResolveTestTotalKotlin : AbstractFirResolveWithSessionTestCase() {
         return KotlinCoreEnvironment.createForTests(testRootDisposable, configuration, EnvironmentConfigFiles.JVM_CONFIG_FILES)
     }
 
-    override fun createSession(): FirSession {
-        return object : FirSessionBase(FirTestModuleInfo()) {
-            init {
-                val firProvider = FirProviderImpl(this)
-                registerComponent(FirProvider::class, firProvider)
-                registerComponent(
-                    FirSymbolProvider::class,
-                    FirCompositeSymbolProvider(listOf(firProvider, JavaSymbolProvider(project), FirLibrarySymbolProviderImpl(this)))
-                )
-                registerComponent(FirQualifierResolver::class, FirQualifierResolverImpl(this))
-                registerComponent(FirTypeResolver::class, FirTypeResolverImpl())
-            }
-        }
-    }
+    override fun createSession(): FirSession = FirJavaModuleBasedSession(FirTestModuleInfo(), project)
 
 
     fun testTotalKotlin() {

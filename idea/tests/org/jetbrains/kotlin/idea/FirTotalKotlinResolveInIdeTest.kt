@@ -11,16 +11,12 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.testFramework.ModuleTestCase
-import org.jetbrains.kotlin.fir.FirSessionBase
 import org.jetbrains.kotlin.fir.builder.RawFirBuilder
 import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.doFirResolveTestBench
-import org.jetbrains.kotlin.fir.java.JavaSymbolProvider
+import org.jetbrains.kotlin.fir.java.FirJavaModuleBasedSession
 import org.jetbrains.kotlin.fir.resolve.FirProvider
-import org.jetbrains.kotlin.fir.resolve.FirQualifierResolver
-import org.jetbrains.kotlin.fir.resolve.FirSymbolProvider
-import org.jetbrains.kotlin.fir.resolve.FirTypeResolver
-import org.jetbrains.kotlin.fir.resolve.impl.*
+import org.jetbrains.kotlin.fir.resolve.impl.FirProviderImpl
 import org.jetbrains.kotlin.fir.resolve.transformers.FirTotalResolveTransformer
 import org.jetbrains.kotlin.fir.service
 import org.jetbrains.kotlin.idea.caches.project.productionSourceInfo
@@ -31,7 +27,6 @@ class FirTotalKotlinResolveInIdeTest : ModuleTestCase() {
     private val forbiddenDirectories = listOf("testdata", "resources")
 
     private val projectRootFile = File(".")
-
 
     override fun setUpModule() {
         super.setUpModule()
@@ -55,19 +50,7 @@ class FirTotalKotlinResolveInIdeTest : ModuleTestCase() {
 
     }
 
-    private fun createSession() = object : FirSessionBase(module.productionSourceInfo()!!) {
-        init {
-            val firProvider = FirProviderImpl(this)
-            registerComponent(FirProvider::class, firProvider)
-            registerComponent(
-                FirSymbolProvider::class,
-                FirCompositeSymbolProvider(listOf(firProvider, JavaSymbolProvider(project), FirLibrarySymbolProviderImpl(this)))
-            )
-            registerComponent(FirQualifierResolver::class, FirQualifierResolverImpl(this))
-            registerComponent(FirTypeResolver::class, FirTypeResolverImpl())
-        }
-    }
-
+    private fun createSession() = FirJavaModuleBasedSession(module.productionSourceInfo()!!, project)
 
     fun testTotalKotlin() {
         val session = createSession()
