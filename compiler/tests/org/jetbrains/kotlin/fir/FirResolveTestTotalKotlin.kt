@@ -34,8 +34,8 @@ class FirResolveTestTotalKotlin : AbstractFirResolveWithSessionTestCase() {
 
     override fun createEnvironment(): KotlinCoreEnvironment {
 
-        val configurationKind = ConfigurationKind.JDK_NO_RUNTIME
-        val testJdkKind = TestJdkKind.MOCK_JDK
+        val configurationKind = ConfigurationKind.ALL
+        val testJdkKind = TestJdkKind.FULL_JDK
 
 
         val javaFiles = File(".").walkTopDown().filter { file ->
