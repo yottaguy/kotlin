@@ -23,6 +23,7 @@ import org.jetbrains.kotlin.fir.resolve.FirTypeResolver
 import org.jetbrains.kotlin.fir.resolve.impl.*
 import org.jetbrains.kotlin.fir.resolve.transformers.FirTotalResolveTransformer
 import org.jetbrains.kotlin.fir.service
+import org.jetbrains.kotlin.idea.caches.project.productionSourceInfo
 import org.jetbrains.kotlin.psi.KtFile
 import java.io.File
 
@@ -54,7 +55,7 @@ class FirTotalKotlinResolveInIdeTest : ModuleTestCase() {
 
     }
 
-    private fun createSession() = object : FirSessionBase() {
+    private fun createSession() = object : FirSessionBase(module.productionSourceInfo()!!) {
         init {
             val firProvider = FirProviderImpl(this)
             registerComponent(FirProvider::class, firProvider)

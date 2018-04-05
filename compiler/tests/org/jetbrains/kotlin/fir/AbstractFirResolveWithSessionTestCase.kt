@@ -16,7 +16,7 @@ import org.jetbrains.kotlin.test.KotlinTestWithEnvironment
 abstract class AbstractFirResolveWithSessionTestCase : KotlinTestWithEnvironment() {
 
     open fun createSession(): FirSession {
-        return object : FirSessionBase() {
+        return object : FirSessionBase(FirTestModuleInfo()) {
             init {
                 val firProvider = FirProviderImpl(this)
                 registerComponent(FirProvider::class, firProvider)

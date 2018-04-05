@@ -5,9 +5,10 @@
 
 package org.jetbrains.kotlin.fir
 
+import org.jetbrains.kotlin.analyzer.ModuleInfo
 import kotlin.reflect.KClass
 
-abstract class FirSessionBase : FirSession {
+abstract class FirSessionBase(override val moduleInfo: ModuleInfo) : FirSession {
 
     protected fun <T : Any> registerComponent(tClass: KClass<T>, t: T) {
         assert(tClass !in components) { "Already registered component" }
@@ -15,5 +16,4 @@ abstract class FirSessionBase : FirSession {
     }
 
     override val components: MutableMap<KClass<*>, Any> = mutableMapOf()
-
 }
