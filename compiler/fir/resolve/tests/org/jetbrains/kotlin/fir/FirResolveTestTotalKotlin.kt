@@ -24,9 +24,7 @@ import java.io.File
 @TestDataPath("/")
 class FirResolveTestTotalKotlin : AbstractFirResolveWithSessionTestCase() {
 
-    // TODO: libraries added temporarily
-    // Without them, test fails with "Too many source module declarations found" for libraries/kotlin.test/...
-    private val forbiddenDirectories = listOf("testData", "resources", "libraries")
+    private val forbiddenDirectories = listOf("testData", "resources", "java9")
 
     override fun createEnvironment(): KotlinCoreEnvironment {
 
@@ -39,12 +37,11 @@ class FirResolveTestTotalKotlin : AbstractFirResolveWithSessionTestCase() {
         }.toList()
 
         val configuration = KotlinTestUtils.newConfiguration(configurationKind, testJdkKind, emptyList(), javaFiles)
-
         return KotlinCoreEnvironment.createForTests(testRootDisposable, configuration, EnvironmentConfigFiles.JVM_CONFIG_FILES)
     }
 
     override fun createSession(): FirSession {
-        return object : FirSessionBase() {
+        return object : FirSessionBase(FirTestModuleInfo()) {
             init {
                 val firProvider = FirProviderImpl(this)
                 registerComponent(FirProvider::class, firProvider)
