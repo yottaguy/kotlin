@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.fir.java
 
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.search.ProjectScope
 import org.jetbrains.kotlin.fir.java.symbols.JavaClassSymbol
 import org.jetbrains.kotlin.fir.resolve.FirSymbolProvider
 import org.jetbrains.kotlin.fir.symbols.ConeSymbol
@@ -15,13 +16,9 @@ import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.resolve.jvm.KotlinJavaPsiFacade
 
-class JavaSymbolProvider(val project: Project) : FirSymbolProvider {
+sealed class JavaSymbolProvider(val project: Project) : FirSymbolProvider {
 
-    override val doesLookupInFir: Boolean
-        get() = false
-
-    // TODO: Concrete scope here
-    private val allScope = GlobalSearchScope.allScope(project)
+    protected abstract val searchScope: GlobalSearchScope
 
     private val classCache = mutableMapOf<ClassId, ConeSymbol?>()
     private val packageCache = mutableMapOf<FqName, FqName?>()
@@ -39,7 +36,7 @@ class JavaSymbolProvider(val project: Project) : FirSymbolProvider {
     override fun getSymbolByFqName(classId: ClassId): ConeSymbol? {
         return classCache.lookupCacheOrCalculate(classId) {
             val facade = KotlinJavaPsiFacade.getInstance(project)
-            val foundClass = facade.findClass(JavaClassFinder.Request(classId), allScope)
+            val foundClass = facade.findClass(JavaClassFinder.Request(classId), searchScope)
             foundClass?.let { javaClass -> JavaClassSymbol(javaClass) }
         }
     }
@@ -47,9 +44,25 @@ class JavaSymbolProvider(val project: Project) : FirSymbolProvider {
     override fun getPackage(fqName: FqName): FqName? {
         return packageCache.lookupCacheOrCalculate(fqName) {
             val facade = KotlinJavaPsiFacade.getInstance(project)
-            val javaPackage = facade.findPackage(fqName.asString(), allScope) ?: return@lookupCacheOrCalculate null
+            val javaPackage = facade.findPackage(fqName.asString(), searchScope) ?: return@lookupCacheOrCalculate null
             FqName(javaPackage.qualifiedName)
         }
     }
+}
+
+class JavaSourceSymbolProvider(project: Project) : JavaSymbolProvider(project) {
+    override val searchScope: GlobalSearchScope =
+        ProjectScope.getProjectScope(project)
+
+    override val doesLookupInFir: Boolean
+        get() = true
+}
+
+class JavaLibrariesSymbolProvider(project: Project) : JavaSymbolProvider(project) {
+    override val searchScope: GlobalSearchScope =
+        ProjectScope.getLibrariesScope(project)
+
+    override val doesLookupInFir: Boolean
+        get() = false
 }
 

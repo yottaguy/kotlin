@@ -19,7 +19,12 @@ class FirJavaModuleBasedSession(moduleInfo: ModuleInfo, project: Project) : FirM
         registerComponent(
             FirSymbolProvider::class,
             FirCompositeSymbolProvider(
-                listOf(service<FirProvider>(), JavaSymbolProvider(project), FirLibrarySymbolProviderImpl(this))
+                listOf(
+                    service<FirProvider>(),
+                    JavaSourceSymbolProvider(project),
+                    FirLibrarySymbolProviderImpl(this),
+                    JavaLibrariesSymbolProvider(project)
+                )
             )
         )
     }
