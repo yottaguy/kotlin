@@ -10,24 +10,30 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.FileTypeIndex
-import com.intellij.psi.search.GlobalSearchScope
+import org.jetbrains.kotlin.analyzer.dependenciesWithoutSelf
 import org.jetbrains.kotlin.fir.FirRenderer
 import org.jetbrains.kotlin.fir.builder.RawFirBuilder
 import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.java.FirJavaModuleBasedSession
+import org.jetbrains.kotlin.fir.java.FirLibrarySession
 import org.jetbrains.kotlin.fir.java.FirProjectSessionProvider
 import org.jetbrains.kotlin.fir.resolve.FirProvider
 import org.jetbrains.kotlin.fir.resolve.impl.FirProviderImpl
 import org.jetbrains.kotlin.fir.resolve.transformers.FirTotalResolveTransformer
 import org.jetbrains.kotlin.fir.service
 import org.jetbrains.kotlin.idea.KotlinFileType
+import org.jetbrains.kotlin.idea.caches.project.IdeaModuleInfo
+import org.jetbrains.kotlin.idea.caches.project.isLibraryClasses
 import org.jetbrains.kotlin.idea.caches.project.productionSourceInfo
 import org.jetbrains.kotlin.idea.multiplatform.setupMppProjectFromDirStructure
 import org.jetbrains.kotlin.idea.stubs.AbstractMultiModuleTest
+import org.jetbrains.kotlin.idea.test.ConfigLibraryUtil
 import org.jetbrains.kotlin.idea.test.PluginTestCaseBase
 import org.jetbrains.kotlin.idea.util.projectStructure.allModules
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.test.KotlinTestUtils
+import org.jetbrains.kotlin.test.TestJdkKind
+import org.jetbrains.kotlin.utils.addToStdlib.cast
 import java.io.File
 
 abstract class AbstractFirMultiModuleResolveTest : AbstractMultiModuleTest() {
@@ -37,11 +43,24 @@ abstract class AbstractFirMultiModuleResolveTest : AbstractMultiModuleTest() {
 
     fun doTest(dirPath: String) {
         setupMppProjectFromDirStructure(File(dirPath))
+        for (module in project.allModules().drop(1)) {
+            ConfigLibraryUtil.configureSdk(
+                module,
+                PluginTestCaseBase.addJdk(testRootDisposable) { PluginTestCaseBase.jdk(TestJdkKind.MOCK_JDK) }
+            )
+        }
         doFirResolveTest(dirPath)
     }
 
-    private fun createSession(module: Module, provider: FirProjectSessionProvider) =
-        FirJavaModuleBasedSession(module.productionSourceInfo()!!, provider, module)
+    private fun createSession(module: Module, provider: FirProjectSessionProvider): FirJavaModuleBasedSession {
+        val moduleInfo = module.productionSourceInfo()!!
+        return FirJavaModuleBasedSession(moduleInfo, provider, moduleInfo.contentScope())
+    }
+
+    private fun createLibrarySession(moduleInfo: IdeaModuleInfo, provider: FirProjectSessionProvider): FirLibrarySession {
+        val contentScope = moduleInfo.contentScope()
+        return FirLibrarySession(moduleInfo, provider, contentScope)
+    }
 
     private fun doFirResolveTest(dirPath: String) {
         val firFiles = mutableListOf<FirFile>()
@@ -52,7 +71,17 @@ abstract class AbstractFirMultiModuleResolveTest : AbstractMultiModuleTest() {
             val builder = RawFirBuilder(session)
             val psiManager = PsiManager.getInstance(project)
 
-            val files = FileTypeIndex.getFiles(KotlinFileType.INSTANCE, GlobalSearchScope.moduleScope(module))
+            val ideaModuleInfo = session.moduleInfo.cast<IdeaModuleInfo>()
+
+            ideaModuleInfo.dependenciesWithoutSelf().forEach {
+                if (it is IdeaModuleInfo && it.isLibraryClasses()) {
+                    createLibrarySession(it, provider)
+                }
+            }
+
+            val contentScope = ideaModuleInfo.contentScope()
+
+            val files = FileTypeIndex.getFiles(KotlinFileType.INSTANCE, contentScope)
 
             println("Got vfiles: ${files.size}")
             files.forEach {

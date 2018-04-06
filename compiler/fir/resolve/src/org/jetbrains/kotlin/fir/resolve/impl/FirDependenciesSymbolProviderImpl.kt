@@ -5,6 +5,7 @@
 
 package org.jetbrains.kotlin.fir.resolve.impl
 
+import org.jetbrains.kotlin.analyzer.dependenciesWithoutSelf
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.resolve.AbstractFirSymbolProvider
 import org.jetbrains.kotlin.fir.resolve.FirSymbolProvider
@@ -14,14 +15,12 @@ import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 
 class FirDependenciesSymbolProviderImpl(val session: FirSession) : AbstractFirSymbolProvider() {
-    override val doesLookupInFir: Boolean
-        get() = false
 
     private val dependencyProviders by lazy {
-        session.moduleInfo?.dependencies()?.mapNotNull {
-            if (it == session.moduleInfo) null
-            else session.sessionProvider?.getSession(it)?.service<FirSymbolProvider>()
-        } ?: emptyList()
+        val moduleInfo = session.moduleInfo ?: return@lazy emptyList()
+        moduleInfo.dependenciesWithoutSelf().mapNotNull {
+            session.sessionProvider?.getSession(it)?.service<FirSymbolProvider>()
+        }.toList()
     }
 
     override fun getSymbolByFqName(classId: ClassId): ConeSymbol? {
