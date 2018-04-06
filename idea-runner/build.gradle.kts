@@ -23,5 +23,7 @@ val appcodePluginDir: File by rootProject.extra
 val appcodeSandboxDir: File by rootProject.extra
 
 runIdeTask("runIde", ideaPluginDir, ideaSandboxDir) {
+    jvmArgs?.removeAll { it.startsWith("-Xmx") }
+    maxHeapSize = "6g"
     dependsOn(":dist", ":ideaPlugin")
 }
