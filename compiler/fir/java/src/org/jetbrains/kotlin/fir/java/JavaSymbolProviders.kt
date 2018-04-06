@@ -10,29 +10,16 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.ProjectScope
 import org.jetbrains.kotlin.fir.java.symbols.JavaClassSymbol
-import org.jetbrains.kotlin.fir.resolve.FirSymbolProvider
+import org.jetbrains.kotlin.fir.resolve.AbstractFirSymbolProvider
 import org.jetbrains.kotlin.fir.symbols.ConeSymbol
 import org.jetbrains.kotlin.load.java.JavaClassFinder
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.resolve.jvm.KotlinJavaPsiFacade
 
-sealed class JavaSymbolProvider(val project: Project, val module: Module?) : FirSymbolProvider {
+sealed class JavaSymbolProvider(val project: Project, val module: Module?) : AbstractFirSymbolProvider() {
 
     protected abstract val searchScope: GlobalSearchScope
-
-    private val classCache = mutableMapOf<ClassId, ConeSymbol?>()
-    private val packageCache = mutableMapOf<FqName, FqName?>()
-
-    private inline fun <K, V : Any?> MutableMap<K, V>.lookupCacheOrCalculate(key: K, l: (K) -> V): V? {
-        return if (key in this.keys) {
-            this[key]
-        } else {
-            val calculated = l(key)
-            this[key] = calculated
-            calculated
-        }
-    }
 
     override fun getSymbolByFqName(classId: ClassId): ConeSymbol? {
         return classCache.lookupCacheOrCalculate(classId) {

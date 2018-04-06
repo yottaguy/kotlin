@@ -15,6 +15,7 @@ import org.jetbrains.kotlin.fir.FirRenderer
 import org.jetbrains.kotlin.fir.builder.RawFirBuilder
 import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.java.FirJavaModuleBasedSession
+import org.jetbrains.kotlin.fir.java.FirProjectSessionProvider
 import org.jetbrains.kotlin.fir.resolve.FirProvider
 import org.jetbrains.kotlin.fir.resolve.impl.FirProviderImpl
 import org.jetbrains.kotlin.fir.resolve.transformers.FirTotalResolveTransformer
@@ -39,12 +40,14 @@ abstract class AbstractFirMultiModuleResolveTest : AbstractMultiModuleTest() {
         doFirResolveTest(dirPath)
     }
 
-    private fun createSession(module: Module) = FirJavaModuleBasedSession(module.productionSourceInfo()!!, project, module)
+    private fun createSession(module: Module, provider: FirProjectSessionProvider) =
+        FirJavaModuleBasedSession(module.productionSourceInfo()!!, provider, module)
 
     private fun doFirResolveTest(dirPath: String) {
         val firFiles = mutableListOf<FirFile>()
+        val provider = FirProjectSessionProvider(project)
         for (module in project.allModules().drop(1)) {
-            val session = createSession(module)
+            val session = createSession(module, provider)
 
             val builder = RawFirBuilder(session)
             val psiManager = PsiManager.getInstance(project)
