@@ -6,9 +6,10 @@
 package org.jetbrains.kotlin.fir
 
 import org.jetbrains.kotlin.fir.java.FirJavaModuleBasedSession
+import org.jetbrains.kotlin.fir.java.FirProjectSessionProvider
 import org.jetbrains.kotlin.test.KotlinTestWithEnvironment
 
 abstract class AbstractFirResolveWithSessionTestCase : KotlinTestWithEnvironment() {
 
-    open fun createSession(): FirSession = FirJavaModuleBasedSession(FirTestModuleInfo(), project)
+    open fun createSession(): FirSession = FirJavaModuleBasedSession(FirTestModuleInfo(), FirProjectSessionProvider(project))
 }
