@@ -11,16 +11,21 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.testFramework.ModuleTestCase
+import org.jetbrains.kotlin.analyzer.dependenciesWithoutSelf
+import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.builder.RawFirBuilder
 import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.doFirResolveTestBench
 import org.jetbrains.kotlin.fir.java.FirJavaModuleBasedSession
+import org.jetbrains.kotlin.fir.java.FirLibrarySession
 import org.jetbrains.kotlin.fir.java.FirProjectSessionProvider
 import org.jetbrains.kotlin.fir.resolve.FirProvider
 import org.jetbrains.kotlin.fir.resolve.impl.FirProviderImpl
 import org.jetbrains.kotlin.fir.resolve.transformers.FirTotalResolveTransformer
 import org.jetbrains.kotlin.fir.service
 import org.jetbrains.kotlin.idea.KotlinFileType
+import org.jetbrains.kotlin.idea.caches.project.IdeaModuleInfo
+import org.jetbrains.kotlin.idea.caches.project.isLibraryClasses
 import org.jetbrains.kotlin.idea.caches.project.productionSourceInfo
 import org.jetbrains.kotlin.psi.KtFile
 import java.io.File
@@ -52,7 +57,17 @@ class FirTotalKotlinResolveInIdeTest : ModuleTestCase() {
 
     }
 
-    private fun createSession() = FirJavaModuleBasedSession(module.productionSourceInfo()!!, FirProjectSessionProvider(project), module)
+    private fun createSession(): FirSession {
+        val moduleInfo = module.productionSourceInfo()!!
+        val sessionProvider = FirProjectSessionProvider(project)
+        moduleInfo.dependenciesWithoutSelf().forEach {
+            if (it is IdeaModuleInfo && it.isLibraryClasses()) {
+                FirLibrarySession(it, sessionProvider, it.contentScope())
+            }
+        }
+
+        return FirJavaModuleBasedSession(moduleInfo, sessionProvider, moduleInfo.contentScope())
+    }
 
     fun testTotalKotlin() {
         val session = createSession()

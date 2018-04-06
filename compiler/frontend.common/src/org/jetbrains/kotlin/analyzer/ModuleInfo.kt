@@ -37,3 +37,5 @@ interface ModuleInfo {
         val Capability = ModuleDescriptor.Capability<ModuleInfo>("ModuleInfo")
     }
 }
+
+fun ModuleInfo.dependenciesWithoutSelf(): Sequence<ModuleInfo> = dependencies().asSequence().filter { it != this }
