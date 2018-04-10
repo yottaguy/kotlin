@@ -15,17 +15,20 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.FileTypeIndex
-import org.jetbrains.kotlin.analyzer.dependenciesWithoutSelf
+import com.intellij.psi.search.GlobalSearchScope
 import org.jetbrains.kotlin.fir.FirElement
+import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.builder.RawFirBuilder
 import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.java.FirJavaModuleBasedSession
-import org.jetbrains.kotlin.fir.java.FirLibrarySession
 import org.jetbrains.kotlin.fir.java.FirProjectSessionProvider
+import org.jetbrains.kotlin.fir.java.JavaSymbolProvider
+import org.jetbrains.kotlin.fir.resolve.AbstractFirSymbolProvider
 import org.jetbrains.kotlin.fir.resolve.FirProvider
 import org.jetbrains.kotlin.fir.resolve.impl.FirProviderImpl
 import org.jetbrains.kotlin.fir.resolve.transformers.FirTotalResolveTransformer
 import org.jetbrains.kotlin.fir.service
+import org.jetbrains.kotlin.fir.symbols.ConeSymbol
 import org.jetbrains.kotlin.fir.types.ConeClassErrorType
 import org.jetbrains.kotlin.fir.types.ConeKotlinErrorType
 import org.jetbrains.kotlin.fir.types.FirResolvedType
@@ -33,27 +36,95 @@ import org.jetbrains.kotlin.fir.types.FirType
 import org.jetbrains.kotlin.fir.visitors.FirTransformer
 import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
 import org.jetbrains.kotlin.idea.KotlinFileType
-import org.jetbrains.kotlin.idea.caches.project.IdeaModuleInfo
-import org.jetbrains.kotlin.idea.caches.project.isLibraryClasses
-import org.jetbrains.kotlin.idea.caches.project.productionSourceInfo
-import org.jetbrains.kotlin.idea.caches.project.testSourceInfo
+import org.jetbrains.kotlin.idea.caches.project.*
+import org.jetbrains.kotlin.idea.stubindex.KotlinFullClassNameIndex
+import org.jetbrains.kotlin.idea.stubindex.PackageIndexUtil
 import org.jetbrains.kotlin.idea.util.application.runReadAction
 import org.jetbrains.kotlin.idea.util.projectStructure.allModules
+import org.jetbrains.kotlin.name.ClassId
+import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.psiUtil.startOffset
 import org.jetbrains.kotlin.utils.addToStdlib.cast
 import kotlin.reflect.KClass
 import kotlin.system.measureNanoTime
 
-class BuildAndResolveFirAction : AnAction() {
-    private fun createSession(moduleInfo: IdeaModuleInfo, provider: FirProjectSessionProvider): FirJavaModuleBasedSession {
-        return FirJavaModuleBasedSession(moduleInfo, provider, moduleInfo.contentScope())
+
+class IdeFirDependenciesSymbolProvider(
+    val moduleInfo: IdeaModuleInfo,
+    val project: Project,
+    private val sessionProvider: FirProjectSessionProvider
+) : AbstractFirSymbolProvider() {
+
+
+    // TODO: Our special scope here?
+    private val depScope = GlobalSearchScope.moduleWithDependenciesAndLibrariesScope((moduleInfo as ModuleSourceInfo).module)
+
+    private val javaSymbolProvider = JavaSymbolProvider(project, depScope)
+
+
+    private fun buildKotlinClassOnRequest(file: KtFile, classId: ClassId, session: FirSession): ConeSymbol? {
+        val impl = FirProvider.getInstance(session) as FirProviderImpl
+        val classifier = impl.getSymbolByFqName(classId)
+        if (classifier != null) {
+            return classifier
+        }
+
+        val builder = RawFirBuilder(session)
+        impl.recordFile(builder.buildFirFile(file))
+        return impl.getSymbolByFqName(classId)
     }
 
-    private fun createLibrarySession(moduleInfo: IdeaModuleInfo, provider: FirProjectSessionProvider): FirLibrarySession {
-        val contentScope = moduleInfo.contentScope()
-        return FirLibrarySession(moduleInfo, provider, contentScope)
+    private fun tryKotlin(classId: ClassId): ConeSymbol? {
+        return classCache.lookupCacheOrCalculate(classId) {
+            val index = KotlinFullClassNameIndex.getInstance()
+            val s = index[classId.packageFqName.asString() + "." + classId.relativeClassName.asString(), project, depScope]
+
+            val classPsi = s.firstOrNull() ?: return null
+
+            val module = classPsi.getModuleInfo()
+            if (classPsi.containingKtFile.isCompiled) {
+                // TODO: WTF? Resolving libraries in current session
+                val session = sessionProvider.getSession(moduleInfo) ?: return null
+                return buildKotlinClassOnRequest(classPsi.containingKtFile, classId, session)
+            }
+
+            val session = sessionProvider.getSession(module) ?: return null
+            session.service<FirProvider>().getSymbolByFqName(classId)
+        }
     }
+
+    private fun tryJava(classId: ClassId): ConeSymbol? {
+        return javaSymbolProvider.getSymbolByFqName(classId)
+    }
+
+    override fun getSymbolByFqName(classId: ClassId): ConeSymbol? {
+        return tryKotlin(classId) ?: tryJava(classId)
+    }
+
+    override fun getPackage(fqName: FqName): FqName? {
+
+        if (PackageIndexUtil.packageExists(fqName, depScope, project)) {
+            return fqName
+        }
+        return javaSymbolProvider.getPackage(fqName)
+    }
+}
+
+class BuildAndResolveFirAction : AnAction() {
+    private fun createSession(moduleInfo: IdeaModuleInfo, provider: FirProjectSessionProvider): FirJavaModuleBasedSession {
+        return FirJavaModuleBasedSession(
+            moduleInfo,
+            provider,
+            moduleInfo.contentScope(),
+            IdeFirDependenciesSymbolProvider(moduleInfo, provider.project, provider)
+        )
+    }
+
+//    private fun createLibrarySession(moduleInfo: IdeaModuleInfo, provider: FirProjectSessionProvider): FirLibrarySession {
+//        val contentScope = moduleInfo.contentScope()
+//        return FirLibrarySession(moduleInfo, provider, contentScope)
+//    }
 
 
     private fun runFirAnalysis(project: Project, indicator: ProgressIndicator) {
@@ -74,11 +145,11 @@ class BuildAndResolveFirAction : AnAction() {
 
                 val ideaModuleInfo = session.moduleInfo.cast<IdeaModuleInfo>()
 
-                ideaModuleInfo.dependenciesWithoutSelf().forEach {
-                    if (it is IdeaModuleInfo && it.isLibraryClasses()) {
-                        createLibrarySession(it, provider)
-                    }
-                }
+//                ideaModuleInfo.dependenciesWithoutSelf().forEach {
+//                    if (it is IdeaModuleInfo && it.isLibraryClasses()) {
+//                        createLibrarySession(it, provider)
+//                    }
+//                }
 
                 val contentScope = ideaModuleInfo.contentScope()
 
@@ -163,9 +234,11 @@ fun doFirResolveTestBenchIde(firFiles: List<FirFile>, transformers: List<FirTran
     } finally {
 
         var implicitTypes = 0
+        var nonImplementedDelegatedConstructorCall = 0
 
 
         val errorTypesReports = mutableMapOf<String, String>()
+        val errorTypesReportCounts = mutableMapOf<String, Int>()
 
         val psiDocumentManager = PsiDocumentManager.getInstance(project)
 
@@ -186,14 +259,25 @@ fun doFirResolveTestBenchIde(firFiles: List<FirFile>, transformers: List<FirTran
                         if (resolvedType.psi == null) {
                             implicitTypes++
                         } else {
-                            val psi = resolvedType.psi!!
-                            val problem = "$type with psi `${psi.text}`"
-                            val document = psiDocumentManager.getDocument(psi.containingFile)
-                            val line = document?.getLineNumber(psi.startOffset) ?: 0
-                            val char = psi.startOffset - (document?.getLineStartOffset(line) ?: 0)
-                            val report = "e: ${psi.containingFile?.virtualFile?.path}: ($line:$char): $problem"
-                            errorTypesReports[problem] = report
-                            errorTypes++
+                            val reason = when (type) {
+                                is ConeKotlinErrorType -> type.reason
+                                is ConeClassErrorType -> type.reason
+                                else -> error("!!!!!!!!!!!!!")
+                            }
+
+                            if (reason == "Not implemented yet") {
+                                nonImplementedDelegatedConstructorCall++
+                            } else {
+                                val psi = resolvedType.psi!!
+                                val problem = "`$reason` with psi `${psi.text}`"
+                                val document = psiDocumentManager.getDocument(psi.containingFile)
+                                val line = document?.getLineNumber(psi.startOffset) ?: 0
+                                val char = psi.startOffset - (document?.getLineStartOffset(line) ?: 0)
+                                val report = "e: ${psi.containingFile?.virtualFile?.path}: ($line:$char): $problem"
+                                errorTypesReports[problem] = report
+                                errorTypesReportCounts.merge(problem, 1) { a, b -> a + b }
+                                errorTypes++
+                            }
                         }
                     }
                 }
@@ -201,15 +285,16 @@ fun doFirResolveTestBenchIde(firFiles: List<FirFile>, transformers: List<FirTran
         }
 
         errorTypesReports.forEach {
-            println(it.value)
+            println(it.value + " (total: ${errorTypesReportCounts[it.key]})")
         }
 
 
         println("UNRESOLVED TYPES: $unresolvedTypes")
         println("RESOLVED TYPES: $resolvedTypes")
         println("GOOD TYPES: ${resolvedTypes - errorTypes}")
+        println("NOT IMPLEMENTED ER TYPES: $nonImplementedDelegatedConstructorCall")
+        println("NOT IMPLEMENTED IMPLICIT TYPES: $implicitTypes")
         println("ERROR TYPES: $errorTypes")
-        println("IMPLICIT TYPES: $implicitTypes")
         println("UNIQUE ERROR TYPES: ${errorTypesReports.size}")
 
 
