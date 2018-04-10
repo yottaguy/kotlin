@@ -22,7 +22,7 @@ abstract class FirAbstractStarImportingScope(val session: FirSession, lookupInFi
 
     val provider = FirSymbolProvider.getInstance(session).let {
         when {
-            it is FirCompositeSymbolProvider && !lookupInFir -> it.providers.find { it is FirDependenciesSymbolProviderImpl }!!
+            it is FirCompositeSymbolProvider && !lookupInFir -> it.providers.find { it is FirDependenciesSymbolProviderImpl } ?: it
             else -> it
         }
     }
