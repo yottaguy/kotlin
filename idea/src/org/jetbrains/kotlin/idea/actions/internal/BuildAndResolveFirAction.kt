@@ -38,12 +38,15 @@ import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
 import org.jetbrains.kotlin.idea.KotlinFileType
 import org.jetbrains.kotlin.idea.caches.project.*
 import org.jetbrains.kotlin.idea.stubindex.KotlinFullClassNameIndex
+import org.jetbrains.kotlin.idea.stubindex.KotlinTopLevelTypeAliasFqNameIndex
 import org.jetbrains.kotlin.idea.stubindex.PackageIndexUtil
 import org.jetbrains.kotlin.idea.util.application.runReadAction
 import org.jetbrains.kotlin.idea.util.projectStructure.allModules
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.psi.KtDeclaration
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtTypeAlias
 import org.jetbrains.kotlin.psi.psiUtil.startOffset
 import org.jetbrains.kotlin.utils.addToStdlib.cast
 import kotlin.reflect.KClass
@@ -75,18 +78,31 @@ class IdeFirDependenciesSymbolProvider(
         return impl.getSymbolByFqName(classId)
     }
 
+    private fun selectNearest(classesPsi: Collection<KtDeclaration>, typeAliasesPsi: Collection<KtTypeAlias>): KtDeclaration? {
+        return when {
+            typeAliasesPsi.isEmpty() -> classesPsi.firstOrNull()
+            classesPsi.isEmpty() -> typeAliasesPsi.firstOrNull()
+            else -> (classesPsi.asSequence() + typeAliasesPsi.asSequence()).minWith(Comparator { o1, o2 ->
+                depScope.compare(o1.containingFile.virtualFile, o2.containingFile.virtualFile)
+            })
+        }
+    }
+
     private fun tryKotlin(classId: ClassId): ConeSymbol? {
         return classCache.lookupCacheOrCalculate(classId) {
             val index = KotlinFullClassNameIndex.getInstance()
-            val s = index[classId.packageFqName.asString() + "." + classId.relativeClassName.asString(), project, depScope]
 
-            val classPsi = s.firstOrNull() ?: return null
+            val fqNameString = classId.packageFqName.asString() + "." + classId.relativeClassName.asString()
+            val classesPsi = index[fqNameString, project, depScope]
+            val typeAliasesPsi = KotlinTopLevelTypeAliasFqNameIndex.getInstance()[fqNameString, project, depScope]
 
-            val module = classPsi.getModuleInfo()
-            if (classPsi.containingKtFile.isCompiled) {
+            val psi = selectNearest(classesPsi, typeAliasesPsi) ?: return null
+
+            val module = psi.getModuleInfo()
+            if (psi.containingKtFile.isCompiled) {
                 // TODO: WTF? Resolving libraries in current session
                 val session = sessionProvider.getSession(moduleInfo) ?: return null
-                return buildKotlinClassOnRequest(classPsi.containingKtFile, classId, session)
+                return buildKotlinClassOnRequest(psi.containingKtFile, classId, session)
             }
 
             val session = sessionProvider.getSession(module) ?: return null
