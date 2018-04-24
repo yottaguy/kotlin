@@ -96,16 +96,16 @@ class IdeFirDependenciesSymbolProvider(
             val classesPsi = index[fqNameString, project, depScope]
             val typeAliasesPsi = KotlinTopLevelTypeAliasFqNameIndex.getInstance()[fqNameString, project, depScope]
 
-            val psi = selectNearest(classesPsi, typeAliasesPsi) ?: return null
+            val psi = selectNearest(classesPsi, typeAliasesPsi) ?: return@lookupCacheOrCalculate null
 
             val module = psi.getModuleInfo()
             if (psi.containingKtFile.isCompiled) {
                 // TODO: WTF? Resolving libraries in current session
-                val session = sessionProvider.getSession(moduleInfo) ?: return null
-                return buildKotlinClassOnRequest(psi.containingKtFile, classId, session)
+                val session = sessionProvider.getSession(moduleInfo) ?: return@lookupCacheOrCalculate null
+                return@lookupCacheOrCalculate buildKotlinClassOnRequest(psi.containingKtFile, classId, session)
             }
 
-            val session = sessionProvider.getSession(module) ?: return null
+            val session = sessionProvider.getSession(module) ?: return@lookupCacheOrCalculate null
             session.service<FirProvider>().getSymbolByFqName(classId)
         }
     }

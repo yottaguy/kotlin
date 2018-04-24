@@ -13,7 +13,7 @@ abstract class AbstractFirSymbolProvider : FirSymbolProvider {
     protected val classCache = mutableMapOf<ClassId, ConeSymbol?>()
     protected val packageCache = mutableMapOf<FqName, FqName?>()
 
-    protected inline fun <K, V : Any?> MutableMap<K, V>.lookupCacheOrCalculate(key: K, l: (K) -> V): V? {
+    protected inline fun <K, V : Any?> MutableMap<K, V>.lookupCacheOrCalculate(key: K, crossinline l: (K) -> V): V? {
         return if (key in this.keys) {
             this[key]
         } else {
