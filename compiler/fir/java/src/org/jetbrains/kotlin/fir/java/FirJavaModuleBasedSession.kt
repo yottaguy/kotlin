@@ -26,14 +26,23 @@ class FirJavaModuleBasedSession(
         sessionProvider.sessionCache[moduleInfo] = this
         registerComponent(
             FirSymbolProvider::class,
-            FirCompositeSymbolProvider(
-                listOf(
-                    service<FirProvider>(),
-                    JavaSymbolProvider(sessionProvider.project, scope, this),
-                    FirLibrarySymbolProviderImpl(this),
-                    dependenciesProvider ?: FirDependenciesSymbolProviderImpl(this)
+            when (dependenciesProvider) {
+                null -> FirCompositeSymbolProvider(
+                    listOf(
+                        service<FirProvider>(),
+                        JavaSymbolProvider(sessionProvider.project, scope, this),
+                        FirLibrarySymbolProviderImpl(this),
+                        FirDependenciesSymbolProviderImpl(this)
+                    )
                 )
-            )
+                else -> FirCompositeSymbolProvider(
+                    listOf(
+                        service<FirProvider>(),
+                        FirLibrarySymbolProviderImpl(this),
+                        dependenciesProvider
+                    )
+                )
+            }
         )
     }
 }
