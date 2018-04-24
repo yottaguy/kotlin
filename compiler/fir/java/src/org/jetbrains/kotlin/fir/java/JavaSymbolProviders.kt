@@ -7,8 +7,10 @@ package org.jetbrains.kotlin.fir.java
 
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.GlobalSearchScope
+import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.java.symbols.JavaClassSymbol
 import org.jetbrains.kotlin.fir.resolve.AbstractFirSymbolProvider
+import org.jetbrains.kotlin.fir.serviceOrNull
 import org.jetbrains.kotlin.fir.symbols.ConeSymbol
 import org.jetbrains.kotlin.load.java.structure.JavaClass
 import org.jetbrains.kotlin.load.java.structure.classId
@@ -18,21 +20,22 @@ import org.jetbrains.kotlin.resolve.jvm.KotlinJavaPsiFacade
 
 class JavaSymbolProvider(
     val project: Project,
-    private val searchScope: GlobalSearchScope
+    private val searchScope: GlobalSearchScope,
+    private val session: FirSession
 ) : AbstractFirSymbolProvider() {
 
     override fun getSymbolByFqName(classId: ClassId): ConeSymbol? {
         return classCache.lookupCacheOrCalculate(classId) {
             val facade = KotlinJavaPsiFacade.getInstance(project)
-            val foundClass = facade.findClass(classId, searchScope)
-            foundClass?.let { javaClass -> JavaClassSymbol(this, javaClass) }
+            val foundClass: JavaClass? = facade.findClass(classId, searchScope)
+            foundClass?.let { javaClass -> JavaClassSymbol(this, session.serviceOrNull(), javaClass) }
         }
     }
 
     fun getSymbolByJavaClass(javaClass: JavaClass): ConeSymbol? {
         val classId = javaClass.classId ?: error("!")
         return classCache.lookupCacheOrCalculate(classId) {
-            JavaClassSymbol(this, javaClass)
+            JavaClassSymbol(this, session.serviceOrNull(), javaClass)
         }
     }
 

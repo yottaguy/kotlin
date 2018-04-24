@@ -17,6 +17,9 @@ interface FirSession {
 
     fun <T : Any> getService(kclass: KClass<T>): T =
         components[kclass] as T
+
+    fun <T : Any> getServiceOrNull(kclass: KClass<T>): T? =
+        components[kclass] as T?
 }
 
 interface FirSessionProvider {
@@ -25,3 +28,6 @@ interface FirSessionProvider {
 
 inline fun <reified T : Any> FirSession.service(): T =
     getService(T::class)
+
+inline fun <reified T : Any> FirSession.serviceOrNull(): T? =
+    getServiceOrNull(T::class)
