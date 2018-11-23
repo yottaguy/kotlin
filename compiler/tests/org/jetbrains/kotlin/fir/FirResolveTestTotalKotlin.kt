@@ -32,6 +32,10 @@ import kotlin.system.measureNanoTime
 @TestDataPath("\$PROJECT_ROOT")
 class FirResolveTestTotalKotlin : AbstractFirResolveWithSessionTestCase() {
 
+    // TODO: libraries added temporarily
+    // Without them, test fails with "Too many source module declarations found" for libraries/kotlin.test/...
+    private val forbiddenDirectories = listOf("testData", "resources", "libraries")
+
     override fun createEnvironment(): KotlinCoreEnvironment {
 
         val configurationKind = ConfigurationKind.ALL
@@ -39,8 +43,7 @@ class FirResolveTestTotalKotlin : AbstractFirResolveWithSessionTestCase() {
 
 
         val javaFiles = File(".").walkTopDown().filter { file ->
-            (!file.isDirectory) && !(file.path.contains("testData") || file.path.contains("resources"))
-                    && (file.extension == "java")
+            !file.isDirectory && forbiddenDirectories.none { it in file.path } && file.extension == "java"
         }.toList()
 
         val configuration = KotlinTestUtils.newConfiguration(configurationKind, testJdkKind, emptyList(), javaFiles)
