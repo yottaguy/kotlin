@@ -30,9 +30,12 @@ val appcodePluginDir: File by rootProject.extra
 val appcodeVersion = rootProject.extra["versions.appcode"] as String
 val appcodeVersionStrict = (rootProject.extra["versions.appcode.strict"] as String).toBoolean()
 val appcodeVersionRepo = rootProject.extra["versions.appcode.repo"] as String
+val kotlinNativeVersion = rootProject.extra["versions.kotlin.native"] as String
+val kotlinNativeRepo = rootProject.extra["versions.kotlin.native.repo"] as String
 
 val cidrPlugin by configurations.creating
 val platformDepsZip by configurations.creating
+val sideJars by configurations.creating
 
 val pluginXmlPath = "META-INF/plugin.xml"
 
@@ -48,6 +51,7 @@ val projectsToShadow by extra(listOf(
 dependencies {
     cidrPlugin(project(":prepare:cidr-plugin"))
     platformDepsZip(tc("$appcodeVersionRepo:$appcodeVersion:OC-plugins/kotlinNative-platformDeps-$appcodeVersion.zip"))
+    sideJars(tc("$kotlinNativeRepo:$kotlinNativeVersion:backend.native.jar"))
 }
 
 val kotlinPluginXml by tasks.creating {
@@ -111,11 +115,14 @@ val platformDepsJar by task<Zip> {
 task<Copy>("appcodePlugin") {
     into(appcodePluginDir)
     from(cidrPluginDir) { exclude("lib/kotlin-plugin.jar") }
-    from(jar) { into("lib") }
-    from(platformDepsJar) { into("lib") }
-    from(zipTree(platformDepsZip.singleFile).files) {
-        exclude("**/$platformDepsJarName")
-        into("lib")
+
+    into("lib") {
+        from(jar)
+        from(sideJars)
+        from(platformDepsJar)
+        from(zipTree(platformDepsZip.singleFile).files) {
+            exclude("**/$platformDepsJarName")
+        }
     }
     from(File(project(":kotlin-ultimate:appcode-native").projectDir, "templates")) { into("templates") }
 }
