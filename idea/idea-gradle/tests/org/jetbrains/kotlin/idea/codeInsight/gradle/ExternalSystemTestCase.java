@@ -16,13 +16,12 @@
 package org.jetbrains.kotlin.idea.codeInsight.gradle;
 
 import com.intellij.compiler.CompilerTestUtil;
-import com.intellij.openapi.application.AccessToken;
-import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.Result;
-import com.intellij.openapi.application.WriteAction;
+import com.intellij.openapi.application.*;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.projectRoots.ProjectJdkTable;
+import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.CharsetToolkit;
@@ -35,10 +34,10 @@ import com.intellij.testFramework.fixtures.IdeaProjectTestFixture;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.Processor;
-import com.intellij.util.ThrowableRunnable;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.kotlin.idea.framework.KotlinSdkType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -47,8 +46,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.*;
 import java.util.List;
 
 import static org.jetbrains.kotlin.test.testFramework.EdtTestUtil.runInEdtAndWait;
@@ -58,6 +56,7 @@ public abstract class ExternalSystemTestCase extends UsefulTestCase {
     private File ourTempDir;
 
     protected IdeaProjectTestFixture myTestFixture;
+    protected Collection<Sdk> myOldKotlinSdks;
 
     protected Project myProject;
 
@@ -146,6 +145,9 @@ public abstract class ExternalSystemTestCase extends UsefulTestCase {
     protected void setUpFixtures() throws Exception {
         myTestFixture = IdeaTestFixtureFactory.getFixtureFactory().createFixtureBuilder(getName()).getFixture();
         myTestFixture.setUp();
+        //Persist SDKs existing before the test started
+        final ProjectJdkTable table = ProjectJdkTable.getInstance();
+        myOldKotlinSdks = table == null ? Collections.emptyList() : table.getSdksOfType(KotlinSdkType.INSTANCE);
     }
 
     private void setUpInWriteAction() throws Exception {
@@ -158,12 +160,24 @@ public abstract class ExternalSystemTestCase extends UsefulTestCase {
     @Override
     public void tearDown() throws Exception {
         try {
-            EdtTestUtil.runInEdtAndWait(new ThrowableRunnable<Throwable>() {
-                @Override
-                public void run() throws Throwable {
-                    CompilerTestUtil.disableExternalCompiler(myProject);
-                    tearDownFixtures();
+            EdtTestUtil.runInEdtAndWait(() -> {
+                CompilerTestUtil.disableExternalCompiler(myProject);
+
+                // Default fixtures provided by IDEA Core expect that no SDKs are created during import, but Kotlin MPP may create SDKs (KT-22590).
+                // Thus we should clean up Kotlin SDKs created during import process.
+                final ProjectJdkTable table = ProjectJdkTable.getInstance();
+                if (table != null) {
+                    table.getSdksOfType(KotlinSdkType.INSTANCE).stream().filter(x -> !myOldKotlinSdks.contains(x))
+                            .forEach(toRemove -> {
+                                final Application application = ApplicationManager.getApplication();
+                                application.invokeAndWait(() -> {
+                                    application.runWriteAction(() -> {
+                                        table.removeJdk(toRemove);
+                                    });
+                                });
+                            });
                 }
+                tearDownFixtures();
             });
             myProject = null;
             if (!FileUtil.delete(myTestDir) && myTestDir.exists()) {
