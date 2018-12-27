@@ -21,7 +21,7 @@ import java.io.File
 @TestDataPath("\$PROJECT_ROOT")
 class FirResolveTestTotalKotlin : AbstractFirResolveWithSessionTestCase() {
 
-    private val forbiddenDirectories = listOf("testData", "resources")
+    private val forbiddenDirectories = listOf("testdata", "resources")
 
     override fun createEnvironment(): KotlinCoreEnvironment {
 
