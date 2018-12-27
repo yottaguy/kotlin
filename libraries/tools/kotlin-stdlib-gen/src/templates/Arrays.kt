@@ -916,12 +916,7 @@ object ArrayOps : TemplateGroupBase() {
             }
         }
         on(Platform.Native) {
-            specialFor(ArraysOfObjects) {
-                body { """if (size > 1) kotlin.util.sortArrayComparable(this)""" }
-            }
-            specialFor(ArraysOfPrimitives) {
-                body { """if (size > 1) kotlin.util.sortArray(this)""" }
-            }
+            body { """if (size > 1) sortArray(this)""" }
         }
     }
 
@@ -944,7 +939,7 @@ object ArrayOps : TemplateGroupBase() {
             }
         }
         on(Platform.Native) {
-            body { """if (size > 1) kotlin.util.sortArrayWith(this, 0, size, comparator)""" }
+            body { """if (size > 1) sortArrayWith(this, 0, size, comparator)""" }
         }
     }
 
