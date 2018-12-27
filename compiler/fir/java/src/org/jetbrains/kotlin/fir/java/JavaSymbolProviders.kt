@@ -12,6 +12,7 @@ import org.jetbrains.kotlin.fir.java.symbols.JavaClassSymbol
 import org.jetbrains.kotlin.fir.resolve.AbstractFirSymbolProvider
 import org.jetbrains.kotlin.fir.serviceOrNull
 import org.jetbrains.kotlin.fir.symbols.ConeSymbol
+import org.jetbrains.kotlin.load.java.JavaClassFinder
 import org.jetbrains.kotlin.load.java.structure.JavaClass
 import org.jetbrains.kotlin.load.java.structure.classId
 import org.jetbrains.kotlin.name.ClassId
@@ -27,7 +28,7 @@ class JavaSymbolProvider(
     override fun getSymbolByFqName(classId: ClassId): ConeSymbol? {
         return classCache.lookupCacheOrCalculate(classId) {
             val facade = KotlinJavaPsiFacade.getInstance(project)
-            val foundClass: JavaClass? = facade.findClass(classId, searchScope)
+            val foundClass: JavaClass? = facade.findClass(JavaClassFinder.Request(classId), searchScope)
             foundClass?.let { javaClass -> JavaClassSymbol(this, session.serviceOrNull(), javaClass) }
         }
     }
