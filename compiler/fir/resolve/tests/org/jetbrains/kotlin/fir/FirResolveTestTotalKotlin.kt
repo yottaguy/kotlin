@@ -49,8 +49,8 @@ class FirResolveTestTotalKotlin : AbstractFirResolveWithSessionTestCase() {
 
     fun testTotalKotlin() {
 
-        val testDataPath = "."
-        val root = File(testDataPath)
+        val testDataPath = ""
+        val root = File(testDataPath).absoluteFile
 
         println("BASE PATH: ${root.absolutePath}")
 

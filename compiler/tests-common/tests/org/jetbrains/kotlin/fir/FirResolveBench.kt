@@ -4,6 +4,7 @@
  */
 package org.jetbrains.kotlin.fir
 
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiDocumentManager
 import org.jetbrains.kotlin.fir.declarations.FirFile
@@ -56,7 +57,7 @@ fun doFirResolveTestBench(firFiles: List<FirFile>, transformers: List<FirTransfo
 
         val errorTypesReports = mutableMapOf<String, String>()
 
-        val psiDocumentManager = PsiDocumentManager.getInstance(project)
+        val fileDocumentManager = FileDocumentManager.getInstance()
 
         firFiles.forEach {
             it.accept(object : FirVisitorVoid() {
@@ -77,7 +78,11 @@ fun doFirResolveTestBench(firFiles: List<FirFile>, transformers: List<FirTransfo
                         } else {
                             val psi = resolvedType.psi!!
                             val problem = "$type with psi `${psi.text}`"
-                            val document = psiDocumentManager.getDocument(psi.containingFile)
+                            val document = try {
+                                fileDocumentManager.getDocument(psi.containingFile.virtualFile)
+                            } catch (t: Throwable) {
+                                throw Exception("for file ${psi.containingFile}", t)
+                            }
                             val line = document?.getLineNumber(psi.startOffset) ?: 0
                             val char = psi.startOffset - (document?.getLineStartOffset(line) ?: 0)
                             val report = "e: ${psi.containingFile?.virtualFile?.path}: ($line:$char): $problem"

@@ -31,7 +31,7 @@ import java.io.File
 import kotlin.reflect.full.memberProperties
 
 abstract class AbstractRawFirBuilderTestCase : KtParsingTestCase(
-    ".",
+    "",
     "kt",
     KotlinParserDefinition()
 ) {

@@ -202,13 +202,7 @@ fun main(args: Array<String>) {
             model("ir/sourceRanges")
         }
 
-        testClass<AbstractFirResolveTestCase> {
-            model("fir/resolve", pattern = KT_WITHOUT_DOTS_IN_NAME, excludeDirs = listOf("stdlib"))
-        }
 
-        testClass<AbstractFirResolveTestCaseWithStdlib> {
-            model("fir/resolve/stdlib", pattern = KT_WITHOUT_DOTS_IN_NAME)
-        }
 
         testClass<AbstractBytecodeListingTest> {
             model("codegen/bytecodeListing")
@@ -384,9 +378,19 @@ fun main(args: Array<String>) {
         }
     }
 
-    testGroup("compiler/fir/tree/tests", "compiler/fir/tree/testData") {
+    testGroup("compiler/fir/psi2fir/tests", "compiler/fir/psi2fir/testData") {
         testClass<AbstractRawFirBuilderTestCase> {
-            model("fir/rawBuilder", testMethod = "doRawFirTest")
+            model("rawBuilder", testMethod = "doRawFirTest")
+        }
+    }
+
+    testGroup("compiler/fir/resolve/tests", "compiler/fir/resolve/testData") {
+        testClass<AbstractFirResolveTestCase> {
+            model("resolve", pattern = KT_WITHOUT_DOTS_IN_NAME, excludeDirs = listOf("stdlib"))
+        }
+
+        testClass<AbstractFirResolveTestCaseWithStdlib> {
+            model("resolve/stdlib", pattern = KT_WITHOUT_DOTS_IN_NAME)
         }
     }
 }
