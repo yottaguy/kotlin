@@ -189,7 +189,7 @@ public class FirResolveTestCaseGenerated extends AbstractFirResolveTestCase {
 
         @TestMetadata("ByteArray.kt")
         public void testByteArray() throws Exception {
-            runTest("compiler/testData/fir/resolve/multifile/ByteArray.kt");
+            runTest("compiler/fir/resolve/testData/resolve/multifile/ByteArray.kt");
         }
 
         @TestMetadata("NestedSuperType.kt")
