@@ -746,7 +746,6 @@ object ArrayOps : TemplateGroupBase() {
                 }
             }
             on(Platform.Native) {
-                inlineOnly()
                 body {
                     """
                     checkCopyOfRangeArguments(fromIndex, toIndex, size)
@@ -763,7 +762,6 @@ object ArrayOps : TemplateGroupBase() {
         platforms(Platform.Native)
     } builder {
         visibility("internal")
-        annotation("@PublishedApi")
         returns("SELF")
         doc {
             """
@@ -781,7 +779,6 @@ object ArrayOps : TemplateGroupBase() {
         platforms(Platform.Native)
     } builder {
         visibility("internal")
-        annotation("@PublishedApi")
         returns("SELF")
         doc {
             """
@@ -847,7 +844,6 @@ object ArrayOps : TemplateGroupBase() {
                 }
             }
             on(Platform.Native) {
-                inlineOnly()
                 body { "return this.copyOfUninitializedElements(size)" }
             }
         }
@@ -890,7 +886,6 @@ object ArrayOps : TemplateGroupBase() {
                 body { newSizeCheck + "\n" + body }
             }
             on(Platform.Native) {
-                inlineOnly()
                 body { "return this.copyOfUninitializedElements(newSize)" }
             }
         }
@@ -911,7 +906,6 @@ object ArrayOps : TemplateGroupBase() {
                 suppress("NO_ACTUAL_FOR_EXPECT") // TODO: KT-21937
             }
             on(Platform.Native) {
-                inlineOnly()
                 body { "return this.copyOfNulls(newSize)" }
             }
         }
