@@ -7,21 +7,36 @@ package kotlin.text
 
 import kotlin.js.RegExp
 
+
+@Suppress("NOTHING_TO_INLINE")
+private inline fun shortString(chars: CharArray): String = js("String.fromCharCode").apply(null, chars)
+private const val maxArgChunkSize: Int = 1024
+
 /**
  * Converts the characters in the specified array to a string.
  */
 @SinceKotlin("1.2")
-@kotlin.internal.InlineOnly
-public actual inline fun String(chars: CharArray): String {
-    return js("String.fromCharCode").apply(null, chars)
-}
+public actual fun String(chars: CharArray): String = String(chars, 0, chars.size)
 
 /**
  * Converts the characters from a portion of the specified array to a string.
+ *
+ * @throws IndexOutOfBoundsException if either [offset] or [length] are less than zero
+ * or `offset + length` is out of [chars] array bounds.
  */
 @SinceKotlin("1.2")
 public actual fun String(chars: CharArray, offset: Int, length: Int): String {
-    return String(chars.copyOfRange(offset, offset + length))
+    if (offset < 0 || length < 0 || chars.size - offset < length)
+        throw IndexOutOfBoundsException("size: ${chars.size}; offset: $offset; length: $length")
+    if (length <= maxArgChunkSize) {
+        return shortString(chars.asDynamic().subarray(offset, offset + length).unsafeCast<CharArray>())
+    }
+    val end = offset + length
+    var result = ""
+    for (start in offset until end step maxArgChunkSize) {
+        result += shortString(chars.asDynamic().subarray(start, (start + maxArgChunkSize).coerceAtMost(end)).unsafeCast<CharArray>())
+    }
+    return result
 }
 
 /**
