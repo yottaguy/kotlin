@@ -65,9 +65,7 @@ class K2JVMCompiler : CLICompiler<K2JVMCompilerArguments>() {
 
         if (!configuration.configureJdkHome(arguments)) return COMPILATION_ERROR
 
-        if (arguments.disableStandardScript) {
-            configuration.put(JVMConfigurationKeys.DISABLE_STANDARD_SCRIPT_DEFINITION, true)
-        }
+        configuration.putIfTrue(JVMConfigurationKeys.DISABLE_STANDARD_SCRIPT_DEFINITION, arguments.disableStandardScript)
 
         val pluginLoadResult = loadPlugins(arguments, configuration)
         if (pluginLoadResult != ExitCode.OK) return pluginLoadResult
@@ -263,24 +261,21 @@ class K2JVMCompiler : CLICompiler<K2JVMCompilerArguments>() {
     override fun setupPlatformSpecificArgumentsAndServices(
         configuration: CompilerConfiguration, arguments: K2JVMCompilerArguments, services: Services
     ) {
-        if (IncrementalCompilation.isEnabledForJvm()) {
-            services[LookupTracker::class.java]?.let {
-                configuration.put(CommonConfigurationKeys.LOOKUP_TRACKER, it)
-            }
+        with(configuration) {
+            if (IncrementalCompilation.isEnabledForJvm()) {
+                putIfNotNull(CommonConfigurationKeys.LOOKUP_TRACKER, services[LookupTracker::class.java])
 
-            services[ExpectActualTracker::class.java]?.let {
-                configuration.put(CommonConfigurationKeys.EXPECT_ACTUAL_TRACKER, it)
-            }
+                putIfNotNull(CommonConfigurationKeys.EXPECT_ACTUAL_TRACKER, services[ExpectActualTracker::class.java])
 
-            services[IncrementalCompilationComponents::class.java]?.let {
-                configuration.put(JVMConfigurationKeys.INCREMENTAL_COMPILATION_COMPONENTS, it)
-            }
+                putIfNotNull(
+                    JVMConfigurationKeys.INCREMENTAL_COMPILATION_COMPONENTS,
+                    services[IncrementalCompilationComponents::class.java]
+                )
 
-            services[JavaClassesTracker::class.java]?.let {
-                configuration.put(JVMConfigurationKeys.JAVA_CLASSES_TRACKER, it)
+                putIfNotNull(JVMConfigurationKeys.JAVA_CLASSES_TRACKER, services[JavaClassesTracker::class.java])
             }
+            setupJvmSpecificArguments(arguments)
         }
-        configuration.setupJvmSpecificArguments(arguments)
     }
 
     override fun createArguments(): K2JVMCompilerArguments = K2JVMCompilerArguments().apply {

@@ -24,7 +24,8 @@ import org.jetbrains.kotlin.cli.common.ExitCode.COMPILATION_ERROR
 import org.jetbrains.kotlin.cli.common.ExitCode.INTERNAL_ERROR
 import org.jetbrains.kotlin.cli.common.arguments.CommonCompilerArguments
 import org.jetbrains.kotlin.cli.common.environment.setIdeaIoUseFallback
-import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity.*
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity.INFO
+import org.jetbrains.kotlin.cli.common.messages.GroupingMessageCollector
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.cli.common.messages.MessageCollectorUtil
 import org.jetbrains.kotlin.cli.common.messages.MessageRenderer
@@ -60,7 +61,9 @@ abstract class CLICompiler<A : CommonCompilerArguments> : CLITool<A>() {
 
         val configuration = CompilerConfiguration()
 
-        val messageCollector = configuration.setupMessageCollector(baseMessageCollector, arguments)
+        val messageCollector = GroupingMessageCollector(baseMessageCollector, arguments.allWarningsAsErrors).also {
+            configuration.put(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY, it)
+        }
 
         configuration.put(CLIConfigurationKeys.PERF_MANAGER, performanceManager)
         try {

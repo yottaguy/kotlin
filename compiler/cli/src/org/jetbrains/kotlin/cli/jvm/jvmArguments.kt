@@ -22,13 +22,9 @@ fun CompilerConfiguration.setupJvmSpecificArguments(arguments: K2JVMCompilerArgu
 
     val messageCollector = getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY)
 
-    if (arguments.includeRuntime) {
-        put(JVMConfigurationKeys.INCLUDE_RUNTIME, true)
-    }
-    val friendPaths = arguments.friendPaths?.toList()
-    if (friendPaths != null) {
-        put(JVMConfigurationKeys.FRIEND_PATHS, friendPaths)
-    }
+    putIfTrue(JVMConfigurationKeys.INCLUDE_RUNTIME, arguments.includeRuntime)
+
+    putIfNotNull(JVMConfigurationKeys.FRIEND_PATHS, arguments.friendPaths)
 
     if (arguments.jvmTarget != null) {
         val jvmTarget = JvmTarget.fromString(arguments.jvmTarget!!)
@@ -42,9 +38,7 @@ fun CompilerConfiguration.setupJvmSpecificArguments(arguments: K2JVMCompilerArgu
         }
     }
 
-    arguments.additionalJavaModules?.let { additionalJavaModules ->
-        addAll(JVMConfigurationKeys.ADDITIONAL_JAVA_MODULES, additionalJavaModules.toList())
-    }
+    addAllIfNotNull(JVMConfigurationKeys.ADDITIONAL_JAVA_MODULES, arguments.additionalJavaModules)
 }
 
 fun CompilerConfiguration.configureJdkHome(
