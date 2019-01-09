@@ -25,7 +25,7 @@ import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.ThreeStateCheckBox
 import org.jetbrains.kotlin.cli.common.arguments.*
 import org.jetbrains.kotlin.config.CompilerSettings
-import org.jetbrains.kotlin.config.splitArgumentString
+import org.jetbrains.kotlin.cli.common.arguments.splitArgumentString
 import org.jetbrains.kotlin.idea.compiler.configuration.*
 import org.jetbrains.kotlin.idea.util.onTextChange
 import org.jetbrains.kotlin.platform.IdePlatform
