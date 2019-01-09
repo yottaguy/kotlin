@@ -9,7 +9,6 @@ import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
 import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.cli.common.getLibraryFromHome
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity.*
-import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
 import org.jetbrains.kotlin.cli.jvm.config.JvmClasspathRoot
 import org.jetbrains.kotlin.cli.jvm.config.JvmModulePathRoot
@@ -42,9 +41,8 @@ fun CompilerConfiguration.setupJvmSpecificArguments(arguments: K2JVMCompilerArgu
     addAllIfNotNull(JVMConfigurationKeys.ADDITIONAL_JAVA_MODULES, arguments.additionalJavaModules)
 }
 
-fun CompilerConfiguration.configureJdkHome(
-    arguments: K2JVMCompilerArguments
-): Boolean {
+fun CompilerConfiguration.configureJdkHome(arguments: K2JVMCompilerArguments): Boolean {
+
     val messageCollector = getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY)
 
     if (arguments.noJdk) {
@@ -86,17 +84,15 @@ fun CompilerConfiguration.configureExplicitContentRoots(arguments: K2JVMCompiler
     }
 }
 
-fun CompilerConfiguration.configureStandardLibs(
-    paths: KotlinPaths?,
-    arguments: K2JVMCompilerArguments
-) {
+fun CompilerConfiguration.configureStandardLibs(paths: KotlinPaths?, arguments: K2JVMCompilerArguments) {
     val messageCollector = getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY)
     val isModularJava = isModularJava()
 
     fun addRoot(moduleName: String, libraryName: String, getLibrary: (KotlinPaths) -> File, noLibraryArgument: String) {
-        getLibraryFromHome(paths, getLibrary, libraryName, messageCollector, noLibraryArgument)?.let {
-            addModularRoot(isModularJava, moduleName, it)
-        }
+        addModularRootIfNotNull(
+            isModularJava, moduleName,
+            getLibraryFromHome(paths, getLibrary, libraryName, messageCollector, noLibraryArgument)
+        )
     }
 
     if (!arguments.noStdlib) {
@@ -116,12 +112,14 @@ fun CompilerConfiguration.isModularJava(): Boolean {
     } ?: false
 }
 
-fun CompilerConfiguration.addModularRoot(isModularJava: Boolean, moduleName: String, file: File) {
-    if (isModularJava) {
-        add(CLIConfigurationKeys.CONTENT_ROOTS, JvmModulePathRoot(file))
-        add(JVMConfigurationKeys.ADDITIONAL_JAVA_MODULES, moduleName)
-    } else {
-        add(CLIConfigurationKeys.CONTENT_ROOTS, JvmClasspathRoot(file))
+fun CompilerConfiguration.addModularRootIfNotNull(isModularJava: Boolean, moduleName: String, file: File?) {
+    when {
+        file == null -> {}
+        isModularJava -> {
+            add(CLIConfigurationKeys.CONTENT_ROOTS, JvmModulePathRoot(file))
+            add(JVMConfigurationKeys.ADDITIONAL_JAVA_MODULES, moduleName)
+        }
+        else -> add(CLIConfigurationKeys.CONTENT_ROOTS, JvmClasspathRoot(file))
     }
 }
 
