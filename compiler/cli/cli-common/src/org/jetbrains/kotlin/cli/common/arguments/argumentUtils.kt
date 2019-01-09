@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.cli.common.arguments
 
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.text.VersionComparatorUtil
 import java.util.*
 import kotlin.reflect.KClass
@@ -109,4 +110,8 @@ fun CommonCompilerArguments.setApiVersionToLanguageVersionIfNeeded() {
     if (languageVersion != null && VersionComparatorUtil.compare(languageVersion, apiVersion) < 0) {
         apiVersion = languageVersion
     }
+}
+
+fun splitArgumentString(arguments: String) = StringUtil.splitHonorQuotes(arguments, ' ').map {
+    if (it.startsWith('"')) StringUtil.unescapeChar(StringUtil.unquoteString(it), '"') else it
 }

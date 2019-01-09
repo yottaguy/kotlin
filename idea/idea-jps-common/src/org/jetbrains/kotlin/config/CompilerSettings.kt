@@ -16,8 +16,8 @@
 
 package org.jetbrains.kotlin.config
 
-import com.intellij.openapi.util.text.StringUtil
 import org.jetbrains.kotlin.cli.common.arguments.Freezable
+import org.jetbrains.kotlin.cli.common.arguments.splitArgumentString
 
 class CompilerSettings : Freezable() {
     var additionalArguments: String by FreezableVar(DEFAULT_ADDITIONAL_ARGUMENTS)
@@ -35,6 +35,3 @@ class CompilerSettings : Freezable() {
 val CompilerSettings.additionalArgumentsAsList: List<String>
     get() = splitArgumentString(additionalArguments)
 
-fun splitArgumentString(arguments: String) = StringUtil.splitHonorQuotes(arguments, ' ').map {
-    if (it.startsWith('"')) StringUtil.unescapeChar(StringUtil.unquoteString(it), '"') else it
-}
