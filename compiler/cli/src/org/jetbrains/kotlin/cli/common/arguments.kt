@@ -14,6 +14,10 @@ import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.languageVersionSettings
 import org.jetbrains.kotlin.metadata.deserialization.BinaryVersion
+import org.jetbrains.kotlin.utils.KotlinPaths
+import org.jetbrains.kotlin.utils.KotlinPathsFromHomeDir
+import org.jetbrains.kotlin.utils.PathUtil
+import java.io.File
 
 fun <A : CommonCompilerArguments> CompilerConfiguration.setupMessageCollector(
     messageCollector: MessageCollector,
@@ -79,4 +83,26 @@ fun <A : CommonCompilerArguments> CompilerConfiguration.setupCommonArguments(
 
 fun <A : CommonCompilerArguments> CompilerConfiguration.setupLanguageVersionSettings(arguments: A) {
     languageVersionSettings = arguments.configureLanguageVersionSettings(getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY))
+}
+
+const val KOTLIN_HOME_PROPERTY = "kotlin.home"
+
+fun computeKotlinPaths(messageCollector: MessageCollector, arguments: CommonCompilerArguments): KotlinPaths? {
+    val kotlinHomeProperty = System.getProperty(KOTLIN_HOME_PROPERTY)
+    val kotlinHome = when {
+        arguments.kotlinHome != null -> File(arguments.kotlinHome!!)
+        kotlinHomeProperty != null -> File(kotlinHomeProperty)
+        else -> null
+    }
+
+    return when {
+        kotlinHome == null -> PathUtil.kotlinPathsForCompiler
+        kotlinHome.isDirectory -> KotlinPathsFromHomeDir(kotlinHome)
+        else -> {
+            messageCollector.report(CompilerMessageSeverity.ERROR, "Kotlin home does not exist or is not a directory: $kotlinHome", null)
+            null
+        }
+    }?.also {
+        messageCollector.report(CompilerMessageSeverity.LOGGING, "Using Kotlin home directory " + it.homePath, null)
+    }
 }

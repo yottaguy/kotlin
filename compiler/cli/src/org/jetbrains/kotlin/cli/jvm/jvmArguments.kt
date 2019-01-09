@@ -18,35 +18,6 @@ import org.jetbrains.kotlin.utils.KotlinPaths
 import org.jetbrains.kotlin.utils.PathUtil
 import java.io.File
 
-fun CompilerConfiguration.configureJdkHome(
-    arguments: K2JVMCompilerArguments
-): Boolean {
-    val messageCollector = getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY)
-
-    if (arguments.noJdk) {
-        put(JVMConfigurationKeys.NO_JDK, true)
-
-        if (arguments.jdkHome != null) {
-            messageCollector.report(STRONG_WARNING, "The '-jdk-home' option is ignored because '-no-jdk' is specified")
-        }
-        return true
-    }
-
-    if (arguments.jdkHome != null) {
-        val jdkHome = File(arguments.jdkHome)
-        if (!jdkHome.exists()) {
-            messageCollector.report(ERROR, "JDK home directory does not exist: $jdkHome")
-            return false
-        }
-
-        messageCollector.report(LOGGING, "Using JDK home directory $jdkHome")
-
-        put(JVMConfigurationKeys.JDK_HOME, jdkHome)
-    }
-
-    return true
-}
-
 fun CompilerConfiguration.setupJvmSpecificArguments(arguments: K2JVMCompilerArguments) {
 
     val messageCollector = getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY)
@@ -76,67 +47,33 @@ fun CompilerConfiguration.setupJvmSpecificArguments(arguments: K2JVMCompilerArgu
     }
 }
 
-fun CompilerConfiguration.configureAdvancedJvmOptions(arguments: K2JVMCompilerArguments) {
+fun CompilerConfiguration.configureJdkHome(
+    arguments: K2JVMCompilerArguments
+): Boolean {
+    val messageCollector = getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY)
 
-    put(JVMConfigurationKeys.PARAMETERS_METADATA, arguments.javaParameters)
+    if (arguments.noJdk) {
+        put(JVMConfigurationKeys.NO_JDK, true)
 
-    put(JVMConfigurationKeys.IR, arguments.useIR)
-    put(JVMConfigurationKeys.DISABLE_CALL_ASSERTIONS, arguments.noCallAssertions)
-    put(JVMConfigurationKeys.DISABLE_RECEIVER_ASSERTIONS, arguments.noReceiverAssertions)
-    put(JVMConfigurationKeys.DISABLE_PARAM_ASSERTIONS, arguments.noParamAssertions)
-    put(
-        JVMConfigurationKeys.NO_EXCEPTION_ON_EXPLICIT_EQUALS_FOR_BOXED_NULL,
-        arguments.noExceptionOnExplicitEqualsForBoxedNull
-    )
-    put(JVMConfigurationKeys.DISABLE_OPTIMIZATION, arguments.noOptimize)
-
-    if (!JVMConstructorCallNormalizationMode.isSupportedValue(arguments.constructorCallNormalizationMode)) {
-        getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY).report(
-            ERROR,
-            "Unknown constructor call normalization mode: ${arguments.constructorCallNormalizationMode}, " +
-                    "supported modes: ${JVMConstructorCallNormalizationMode.values().map { it.description }}"
-        )
+        if (arguments.jdkHome != null) {
+            messageCollector.report(STRONG_WARNING, "The '-jdk-home' option is ignored because '-no-jdk' is specified")
+        }
+        return true
     }
 
-    val constructorCallNormalizationMode =
-        JVMConstructorCallNormalizationMode.fromStringOrNull(arguments.constructorCallNormalizationMode)
-    if (constructorCallNormalizationMode != null) {
-        put(
-            JVMConfigurationKeys.CONSTRUCTOR_CALL_NORMALIZATION_MODE,
-            constructorCallNormalizationMode
-        )
+    if (arguments.jdkHome != null) {
+        val jdkHome = File(arguments.jdkHome)
+        if (!jdkHome.exists()) {
+            messageCollector.report(ERROR, "JDK home directory does not exist: $jdkHome")
+            return false
+        }
+
+        messageCollector.report(LOGGING, "Using JDK home directory $jdkHome")
+
+        put(JVMConfigurationKeys.JDK_HOME, jdkHome)
     }
 
-    val assertionsMode =
-        JVMAssertionsMode.fromStringOrNull(arguments.assertionsMode)
-    if (assertionsMode == null) {
-        getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY).report(
-            ERROR,
-            "Unknown assertions mode: ${arguments.assertionsMode}, " +
-                    "supported modes: ${JVMAssertionsMode.values().map { it.description }}"
-        )
-    }
-    put(
-        JVMConfigurationKeys.ASSERTIONS_MODE,
-        assertionsMode ?: JVMAssertionsMode.DEFAULT
-    )
-
-    put(JVMConfigurationKeys.INHERIT_MULTIFILE_PARTS, arguments.inheritMultifileParts)
-    put(JVMConfigurationKeys.USE_TYPE_TABLE, arguments.useTypeTable)
-    put(JVMConfigurationKeys.SKIP_RUNTIME_VERSION_CHECK, arguments.skipRuntimeVersionCheck)
-    put(JVMConfigurationKeys.USE_FAST_CLASS_FILES_READING, !arguments.useOldClassFilesReading)
-
-    if (arguments.useOldClassFilesReading) {
-        getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY)
-            .report(INFO, "Using the old java class files reading implementation")
-    }
-
-    put(CLIConfigurationKeys.ALLOW_KOTLIN_PACKAGE, arguments.allowKotlinPackage)
-    put(JVMConfigurationKeys.USE_SINGLE_MODULE, arguments.singleModule)
-    put(JVMConfigurationKeys.ADD_BUILT_INS_FROM_COMPILER_TO_DEPENDENCIES, arguments.addCompilerBuiltIns)
-    put(JVMConfigurationKeys.CREATE_BUILT_INS_FROM_MODULE_DEPENDENCIES, arguments.loadBuiltInsFromDependencies)
-
-    arguments.declarationsOutputPath?.let { put(JVMConfigurationKeys.DECLARATIONS_JSON_PATH, it) }
+    return true
 }
 
 fun CompilerConfiguration.configureContentRoots(paths: KotlinPaths?, arguments: K2JVMCompilerArguments) {
@@ -215,4 +152,68 @@ fun KotlinCoreEnvironment.registerJavacIfNeeded(
     }
 
     return true
+}
+
+
+fun CompilerConfiguration.configureAdvancedJvmOptions(arguments: K2JVMCompilerArguments) {
+
+    put(JVMConfigurationKeys.PARAMETERS_METADATA, arguments.javaParameters)
+
+    put(JVMConfigurationKeys.IR, arguments.useIR)
+    put(JVMConfigurationKeys.DISABLE_CALL_ASSERTIONS, arguments.noCallAssertions)
+    put(JVMConfigurationKeys.DISABLE_RECEIVER_ASSERTIONS, arguments.noReceiverAssertions)
+    put(JVMConfigurationKeys.DISABLE_PARAM_ASSERTIONS, arguments.noParamAssertions)
+    put(
+        JVMConfigurationKeys.NO_EXCEPTION_ON_EXPLICIT_EQUALS_FOR_BOXED_NULL,
+        arguments.noExceptionOnExplicitEqualsForBoxedNull
+    )
+    put(JVMConfigurationKeys.DISABLE_OPTIMIZATION, arguments.noOptimize)
+
+    if (!JVMConstructorCallNormalizationMode.isSupportedValue(arguments.constructorCallNormalizationMode)) {
+        getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY).report(
+            ERROR,
+            "Unknown constructor call normalization mode: ${arguments.constructorCallNormalizationMode}, " +
+                    "supported modes: ${JVMConstructorCallNormalizationMode.values().map { it.description }}"
+        )
+    }
+
+    val constructorCallNormalizationMode =
+        JVMConstructorCallNormalizationMode.fromStringOrNull(arguments.constructorCallNormalizationMode)
+    if (constructorCallNormalizationMode != null) {
+        put(
+            JVMConfigurationKeys.CONSTRUCTOR_CALL_NORMALIZATION_MODE,
+            constructorCallNormalizationMode
+        )
+    }
+
+    val assertionsMode =
+        JVMAssertionsMode.fromStringOrNull(arguments.assertionsMode)
+    if (assertionsMode == null) {
+        getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY).report(
+            ERROR,
+            "Unknown assertions mode: ${arguments.assertionsMode}, " +
+                    "supported modes: ${JVMAssertionsMode.values().map { it.description }}"
+        )
+    }
+    put(
+        JVMConfigurationKeys.ASSERTIONS_MODE,
+        assertionsMode ?: JVMAssertionsMode.DEFAULT
+    )
+
+    put(JVMConfigurationKeys.INHERIT_MULTIFILE_PARTS, arguments.inheritMultifileParts)
+    put(JVMConfigurationKeys.USE_TYPE_TABLE, arguments.useTypeTable)
+    put(JVMConfigurationKeys.SKIP_RUNTIME_VERSION_CHECK, arguments.skipRuntimeVersionCheck)
+    put(JVMConfigurationKeys.USE_FAST_CLASS_FILES_READING, !arguments.useOldClassFilesReading)
+
+    if (arguments.useOldClassFilesReading) {
+        getNotNull(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY)
+            .report(INFO, "Using the old java class files reading implementation")
+    }
+
+    put(CLIConfigurationKeys.ALLOW_KOTLIN_PACKAGE, arguments.allowKotlinPackage)
+    put(JVMConfigurationKeys.USE_SINGLE_MODULE, arguments.singleModule)
+    put(JVMConfigurationKeys.ADD_BUILT_INS_FROM_COMPILER_TO_DEPENDENCIES, arguments.addCompilerBuiltIns)
+    put(JVMConfigurationKeys.CREATE_BUILT_INS_FROM_MODULE_DEPENDENCIES, arguments.loadBuiltInsFromDependencies)
+
+    arguments.declarationsOutputPath?.let { put(JVMConfigurationKeys.DECLARATIONS_JSON_PATH, it) }
 }

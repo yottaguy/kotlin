@@ -35,8 +35,6 @@ import org.jetbrains.kotlin.progress.CompilationCanceledException
 import org.jetbrains.kotlin.progress.CompilationCanceledStatus
 import org.jetbrains.kotlin.progress.ProgressIndicatorAndCompilationCanceledStatus
 import org.jetbrains.kotlin.utils.KotlinPaths
-import org.jetbrains.kotlin.utils.KotlinPathsFromHomeDir
-import org.jetbrains.kotlin.utils.PathUtil
 import java.io.File
 import java.io.PrintStream
 
@@ -133,38 +131,5 @@ abstract class CLICompiler<A : CommonCompilerArguments> : CLITool<A>() {
         rootDisposable: Disposable,
         paths: KotlinPaths?
     ): ExitCode
-
-    companion object {
-
-        var KOTLIN_HOME_PROPERTY = "kotlin.home"
-
-        private fun computeKotlinPaths(messageCollector: MessageCollector, arguments: CommonCompilerArguments): KotlinPaths? {
-            val paths: KotlinPaths?
-            val kotlinHomeProperty = System.getProperty(KOTLIN_HOME_PROPERTY)
-            val kotlinHome = if (arguments.kotlinHome != null)
-                File(arguments.kotlinHome!!)
-            else if (kotlinHomeProperty != null)
-                File(kotlinHomeProperty)
-            else
-                null
-            if (kotlinHome != null) {
-                if (kotlinHome.isDirectory) {
-                    paths = KotlinPathsFromHomeDir(kotlinHome)
-                } else {
-                    messageCollector.report(ERROR, "Kotlin home does not exist or is not a directory: $kotlinHome", null)
-                    paths = null
-                }
-            } else {
-                paths = PathUtil.kotlinPathsForCompiler
-            }
-
-            if (paths != null) {
-                messageCollector.report(LOGGING, "Using Kotlin home directory " + paths.homePath, null)
-            }
-
-            return paths
-        }
-
-    }
 }
 
