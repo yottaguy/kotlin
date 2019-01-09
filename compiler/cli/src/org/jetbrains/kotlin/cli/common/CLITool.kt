@@ -18,16 +18,12 @@ package org.jetbrains.kotlin.cli.common
 
 import org.fusesource.jansi.AnsiConsole
 import org.jetbrains.kotlin.cli.common.arguments.CommonToolArguments
-import org.jetbrains.kotlin.cli.common.arguments.ManualLanguageFeatureSetting
 import org.jetbrains.kotlin.cli.common.arguments.parseCommandLineArguments
 import org.jetbrains.kotlin.cli.common.arguments.validateArguments
 import org.jetbrains.kotlin.cli.common.messages.*
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity.INFO
-import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity.STRONG_WARNING
 import org.jetbrains.kotlin.cli.jvm.compiler.CompileEnvironmentException
 import org.jetbrains.kotlin.config.KotlinCompilerVersion
-import org.jetbrains.kotlin.config.LanguageFeature.Kind.BUG_FIX
-import org.jetbrains.kotlin.config.LanguageFeature.State.ENABLED
 import org.jetbrains.kotlin.config.Services
 import java.io.PrintStream
 import java.net.URL
@@ -89,7 +85,7 @@ abstract class CLITool<A : CommonToolArguments> {
             messageCollector
         }
 
-        reportArgumentParseProblems(fixedMessageCollector, arguments)
+        fixedMessageCollector.reportArgumentParseProblems(arguments)
         return execImpl(fixedMessageCollector, services, arguments)
     }
 
@@ -114,57 +110,6 @@ abstract class CLITool<A : CommonToolArguments> {
         val message = validateArguments(arguments.errors)
         if (message != null) {
             throw IllegalArgumentException(message)
-        }
-    }
-
-    private fun reportArgumentParseProblems(collector: MessageCollector, arguments: A) {
-        val errors = arguments.errors
-        for (flag in errors.unknownExtraFlags) {
-            collector.report(STRONG_WARNING, "Flag is not supported by this version of the compiler: $flag")
-        }
-        for (argument in errors.extraArgumentsPassedInObsoleteForm) {
-            collector.report(
-                STRONG_WARNING, "Advanced option value is passed in an obsolete form. Please use the '=' character " +
-                        "to specify the value: $argument=..."
-            )
-        }
-        for ((key, value) in errors.duplicateArguments) {
-            collector.report(STRONG_WARNING, "Argument $key is passed multiple times. Only the last value will be used: $value")
-        }
-        for ((deprecatedName, newName) in errors.deprecatedArguments) {
-            collector.report(STRONG_WARNING, "Argument $deprecatedName is deprecated. Please use $newName instead")
-        }
-
-        for (argfileError in errors.argfileErrors) {
-            collector.report(STRONG_WARNING, argfileError)
-        }
-
-        reportUnsafeInternalArgumentsIfAny(arguments, collector)
-        for (internalArgumentsError in errors.internalArgumentsParsingProblems) {
-            collector.report(STRONG_WARNING, internalArgumentsError)
-        }
-    }
-
-    private fun reportUnsafeInternalArgumentsIfAny(arguments: A, collector: MessageCollector) {
-        val unsafeArguments = arguments.internalArguments.filterNot {
-            // -XXLanguage which turns on BUG_FIX considered safe
-            it is ManualLanguageFeatureSetting && it.languageFeature.kind == BUG_FIX && it.state == ENABLED
-        }
-
-        if (unsafeArguments.isNotEmpty()) {
-            val unsafeArgumentsString = unsafeArguments.joinToString(prefix = "\n", postfix = "\n\n", separator = "\n") {
-                it.stringRepresentation
-            }
-
-            collector.report(
-                STRONG_WARNING,
-                "ATTENTION!\n" +
-                        "This build uses unsafe internal compiler arguments:\n" +
-                        unsafeArgumentsString +
-                        "This mode is not recommended for production use,\n" +
-                        "as no stability/compatibility guarantees are given on\n" +
-                        "compiler or generated code. Use it at your own risk!\n"
-            )
         }
     }
 

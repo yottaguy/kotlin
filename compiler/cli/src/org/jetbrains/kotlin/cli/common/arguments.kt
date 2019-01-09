@@ -7,11 +7,14 @@ package org.jetbrains.kotlin.cli.common
 
 import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY
 import org.jetbrains.kotlin.cli.common.arguments.CommonCompilerArguments
+import org.jetbrains.kotlin.cli.common.arguments.CommonToolArguments
+import org.jetbrains.kotlin.cli.common.arguments.ManualLanguageFeatureSetting
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.GroupingMessageCollector
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.config.languageVersionSettings
 import org.jetbrains.kotlin.metadata.deserialization.BinaryVersion
 import org.jetbrains.kotlin.utils.KotlinPaths
@@ -20,10 +23,10 @@ import org.jetbrains.kotlin.utils.PathUtil
 import java.io.File
 
 fun <A : CommonCompilerArguments> CompilerConfiguration.setupMessageCollector(
-    messageCollector: MessageCollector,
+    baseMessageCollector: MessageCollector,
     arguments: A
 ): GroupingMessageCollector =
-    GroupingMessageCollector(messageCollector, arguments.allWarningsAsErrors).also {
+    GroupingMessageCollector(baseMessageCollector, arguments.allWarningsAsErrors).also {
         put(MESSAGE_COLLECTOR_KEY, it)
     }
 
@@ -104,5 +107,56 @@ fun computeKotlinPaths(messageCollector: MessageCollector, arguments: CommonComp
         }
     }?.also {
         messageCollector.report(CompilerMessageSeverity.LOGGING, "Using Kotlin home directory " + it.homePath, null)
+    }
+}
+
+fun <A : CommonToolArguments> MessageCollector.reportArgumentParseProblems(arguments: A) {
+    val errors = arguments.errors
+    for (flag in errors.unknownExtraFlags) {
+        report(CompilerMessageSeverity.STRONG_WARNING, "Flag is not supported by this version of the compiler: $flag")
+    }
+    for (argument in errors.extraArgumentsPassedInObsoleteForm) {
+        report(
+            CompilerMessageSeverity.STRONG_WARNING, "Advanced option value is passed in an obsolete form. Please use the '=' character " +
+                    "to specify the value: $argument=..."
+        )
+    }
+    for ((key, value) in errors.duplicateArguments) {
+        report(CompilerMessageSeverity.STRONG_WARNING, "Argument $key is passed multiple times. Only the last value will be used: $value")
+    }
+    for ((deprecatedName, newName) in errors.deprecatedArguments) {
+        report(CompilerMessageSeverity.STRONG_WARNING, "Argument $deprecatedName is deprecated. Please use $newName instead")
+    }
+
+    for (argfileError in errors.argfileErrors) {
+        report(CompilerMessageSeverity.STRONG_WARNING, argfileError)
+    }
+
+    this.reportUnsafeInternalArgumentsIfAny(arguments)
+    for (internalArgumentsError in errors.internalArgumentsParsingProblems) {
+        report(CompilerMessageSeverity.STRONG_WARNING, internalArgumentsError)
+    }
+}
+
+private fun <A : CommonToolArguments> MessageCollector.reportUnsafeInternalArgumentsIfAny(arguments: A) {
+    val unsafeArguments = arguments.internalArguments.filterNot {
+        // -XXLanguage which turns on BUG_FIX considered safe
+        it is ManualLanguageFeatureSetting && it.languageFeature.kind == LanguageFeature.Kind.BUG_FIX && it.state == LanguageFeature.State.ENABLED
+    }
+
+    if (unsafeArguments.isNotEmpty()) {
+        val unsafeArgumentsString = unsafeArguments.joinToString(prefix = "\n", postfix = "\n\n", separator = "\n") {
+            it.stringRepresentation
+        }
+
+        report(
+            CompilerMessageSeverity.STRONG_WARNING,
+            "ATTENTION!\n" +
+                    "This build uses unsafe internal compiler arguments:\n" +
+                    unsafeArgumentsString +
+                    "This mode is not recommended for production use,\n" +
+                    "as no stability/compatibility guarantees are given on\n" +
+                    "compiler or generated code. Use it at your own risk!\n"
+        )
     }
 }
