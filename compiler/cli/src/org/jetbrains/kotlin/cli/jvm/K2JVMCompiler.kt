@@ -87,7 +87,8 @@ class K2JVMCompiler : CLICompiler<K2JVMCompilerArguments>() {
 
         configuration.put(CommonConfigurationKeys.MODULE_NAME, arguments.moduleName ?: JvmAbi.DEFAULT_MODULE_NAME)
 
-        configuration.configureContentRoots(paths, arguments)
+        configuration.configureExplicitContentRoots(arguments)
+        configuration.configureStandardLibs(paths, arguments)
 
         if (arguments.buildFile == null && arguments.freeArgs.isEmpty() && !arguments.version) {
             if (arguments.script) {
