@@ -12,21 +12,25 @@ import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.impl.PsiFileFactoryImpl
 import com.intellij.testFramework.LightVirtualFile
 import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
+import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
+import org.jetbrains.kotlin.cli.common.arguments.parseCommandLineArguments
 import org.jetbrains.kotlin.cli.common.environment.setIdeaIoUseFallback
 import org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageLocation
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import org.jetbrains.kotlin.cli.common.setupCommonArguments
+import org.jetbrains.kotlin.cli.jvm.*
 import org.jetbrains.kotlin.cli.jvm.compiler.*
 import org.jetbrains.kotlin.cli.jvm.config.JvmClasspathRoot
-import org.jetbrains.kotlin.cli.jvm.config.JvmModulePathRoot
 import org.jetbrains.kotlin.cli.jvm.config.addJvmClasspathRoots
-import org.jetbrains.kotlin.cli.jvm.modules.CoreJrtFileSystem
 import org.jetbrains.kotlin.codegen.ClassBuilderFactories
 import org.jetbrains.kotlin.codegen.CompilationErrorHandler
 import org.jetbrains.kotlin.codegen.KotlinCodegenFacade
 import org.jetbrains.kotlin.codegen.state.GenerationState
-import org.jetbrains.kotlin.config.*
+import org.jetbrains.kotlin.config.CommonConfigurationKeys
+import org.jetbrains.kotlin.config.JVMConfigurationKeys
+import org.jetbrains.kotlin.config.languageVersionSettings
 import org.jetbrains.kotlin.idea.KotlinFileType
 import org.jetbrains.kotlin.idea.KotlinLanguage
 import org.jetbrains.kotlin.name.Name
@@ -34,7 +38,6 @@ import org.jetbrains.kotlin.name.NameUtils
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtScript
 import org.jetbrains.kotlin.script.KotlinScriptDefinition
-import org.jetbrains.kotlin.script.util.KotlinJars
 import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
 import java.io.File
 import java.util.*
@@ -50,6 +53,7 @@ import kotlin.script.experimental.jvm.JvmDependency
 import kotlin.script.experimental.jvm.impl.BridgeDependenciesResolver
 import kotlin.script.experimental.jvm.jdkHome
 import kotlin.script.experimental.jvm.jvm
+import kotlin.script.experimental.jvm.util.KotlinJars
 import kotlin.script.experimental.jvmhost.KJvmCompilerProxy
 import kotlin.script.experimental.util.getOrError
 
@@ -86,20 +90,36 @@ class KJvmCompilerImpl(val hostConfiguration: ScriptingHostConfiguration) : KJvm
             }
 
             val disposable = Disposer.newDisposable()
+
+            val baseArguments = K2JVMCompilerArguments()
+            parseCommandLineArguments(
+                scriptCompilationConfiguration[ScriptCompilationConfiguration.compilerOptions] ?: emptyList(),
+                baseArguments
+            )
+
             val kotlinCompilerConfiguration = org.jetbrains.kotlin.config.CompilerConfiguration().apply {
+
+                put(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY, messageCollector)
+                setupCommonArguments(baseArguments)
+
+                setupJvmSpecificArguments(baseArguments)
+
+                val jdkHomeFromConfigurations = updatedConfiguration.getNoDefault(ScriptCompilationConfiguration.jvm.jdkHome)
+                    ?: hostConfiguration[ScriptingHostConfiguration.jvm.jdkHome]
+                if (jdkHomeFromConfigurations != null) {
+                    messageCollector.report(CompilerMessageSeverity.LOGGING, "Using JDK home directory $jdkHomeFromConfigurations")
+                    put(JVMConfigurationKeys.JDK_HOME, jdkHomeFromConfigurations)
+                } else {
+                    configureJdkHome(baseArguments)
+                }
+
                 add(
                     JVMConfigurationKeys.SCRIPT_DEFINITIONS,
                     BridgeScriptDefinition(scriptCompilationConfiguration, hostConfiguration, ::updateClasspath)
                 )
-                put<MessageCollector>(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY, messageCollector)
                 put(JVMConfigurationKeys.RETAIN_OUTPUT_IN_MEMORY, true)
 
-                var isModularJava = false
-                (updatedConfiguration.getNoDefault(ScriptCompilationConfiguration.jvm.jdkHome)
-                    ?: hostConfiguration[ScriptingHostConfiguration.jvm.jdkHome])?.let {
-                    put(JVMConfigurationKeys.JDK_HOME, it)
-                    isModularJava = CoreJrtFileSystem.isModularJdk(it)
-                }
+                val isModularJava = isModularJava()
 
                 updatedConfiguration[ScriptCompilationConfiguration.dependencies]?.let { dependencies ->
                     addJvmClasspathRoots(
@@ -108,22 +128,21 @@ class KJvmCompilerImpl(val hostConfiguration: ScriptingHostConfiguration) : KJvm
                         }
                     )
                 }
-                fun addRoot(moduleName: String, file: File) {
-                    if (isModularJava) {
-                        add(CLIConfigurationKeys.CONTENT_ROOTS, JvmModulePathRoot(file))
-                        add(JVMConfigurationKeys.ADDITIONAL_JAVA_MODULES, moduleName)
-                    } else {
-                        add(CLIConfigurationKeys.CONTENT_ROOTS, JvmClasspathRoot(file))
-                    }
-                }
-                // TODO: implement logic similar to compiler's  -no-stdlib (and -no-reflect?)
-                addRoot("kotlin.stdlib", KotlinJars.stdlib)
-                KotlinJars.scriptRuntimeOrNull?.let { addRoot("kotlin.script.runtime", it) }
 
-                put(CommonConfigurationKeys.MODULE_NAME, "kotlin-script") // TODO" take meaningful and valid name from somewhere
-                languageVersionSettings = LanguageVersionSettingsImpl(
-                    LanguageVersion.LATEST_STABLE, ApiVersion.LATEST_STABLE, mapOf(AnalysisFlags.skipMetadataVersionCheck to true)
-                )
+                configureExplicitContentRoots(baseArguments)
+
+                if (!baseArguments.noStdlib) {
+                    addModularRootIfNotNull(isModularJava, "kotlin.stdlib", KotlinJars.stdlib)
+                    addModularRootIfNotNull(isModularJava, "kotlin.script.runtime", KotlinJars.scriptRuntimeOrNull)
+                }
+                // see comments about logic in CompilerConfiguration.configureStandardLibs
+                if (!baseArguments.noReflect && !baseArguments.noStdlib) {
+                    addModularRootIfNotNull(isModularJava, "kotlin.reflect", KotlinJars.reflectOrNull)
+                }
+
+                put(CommonConfigurationKeys.MODULE_NAME, baseArguments.moduleName ?: "kotlin-script")
+
+                configureAdvancedJvmOptions(baseArguments)
             }
             environment = KotlinCoreEnvironment.createForProduction(
                 disposable,
