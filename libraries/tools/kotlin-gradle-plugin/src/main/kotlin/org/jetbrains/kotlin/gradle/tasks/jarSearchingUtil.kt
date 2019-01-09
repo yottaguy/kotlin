@@ -38,6 +38,7 @@ private val KOTLIN_SCRIPT_RUNTIME_EXPECTED_CLASS = "kotlin.script.templates.Anno
 private val KOTLIN_SCRIPT_ANNOTATION_EXPECTED_CLASS = "kotlin.script.experimental.annotations.KotlinScript"
 private val KOTLIN_JVM_SCRIPT_COMPILER_EXPECTED_CLASS = "kotlin.script.experimental.jvm.JvmScriptCompiler"
 private val KOTLIN_REFLECT_EXPECTED_CLASS = "kotlin.reflect.full.KClasses"
+private val TROVE4J_EXPECTED_CLASS = "gnu.trove.THashMap"
 internal const val KOTLIN_MODULE_GROUP = "org.jetbrains.kotlin"
 private val KOTLIN_GRADLE_PLUGIN = "kotlin-gradle-plugin"
 internal const val KOTLIN_COMPILER_EMBEDDABLE = "kotlin-compiler-embeddable"
@@ -46,30 +47,41 @@ private val KOTLIN_SCRIPT_RUNTIME = "kotlin-script-runtime"
 private val KOTLIN_SCRIPT_COMMON = "kotlin-scripting-common"
 private val KOTLIN_SCRIPT_JVM = "kotlin-scripting-jvm"
 private val KOTLIN_REFLECT = "kotlin-reflect"
+private val TROVE4J = "trove4j"
 
 internal fun findKotlinJvmCompilerClasspath(project: Project): List<File> =
     findKotlinModuleJar(project, K2JVM_COMPILER_CLASS, KOTLIN_COMPILER_EMBEDDABLE).let {
         if (it.isEmpty()) it
-        else it + findKotlinStdlibClasspath(project) + findKotlinScriptRuntimeClasspath(project) + findKotlinReflectClasspath(project)
+        else it + findKotlinCompilerClasspath(project)
     }
 
 internal fun findKotlinJsCompilerClasspath(project: Project): List<File> =
     findKotlinModuleJar(project, K2JS_COMPILER_CLASS, KOTLIN_COMPILER_EMBEDDABLE).let {
         if (it.isEmpty()) it
-        else it + findKotlinStdlibClasspath(project) + findKotlinScriptRuntimeClasspath(project) + findKotlinReflectClasspath(project)
+        else it + findKotlinCompilerClasspath(project)
     }
 
 internal fun findKotlinMetadataCompilerClasspath(project: Project): List<File> =
     findKotlinModuleJar(project, K2METADATA_COMPILER_CLASS, KOTLIN_COMPILER_EMBEDDABLE).let {
         if (it.isEmpty()) it
-        else it + findKotlinStdlibClasspath(project) + findKotlinScriptRuntimeClasspath(project) + findKotlinReflectClasspath(project)
+        else it + findKotlinCompilerClasspath(project)
     }
 
 internal fun findKotlinJsDceClasspath(project: Project): List<File> =
     findKotlinModuleJar(project, K2JS_DCE_CLASS, KOTLIN_COMPILER_EMBEDDABLE).let {
         if (it.isEmpty()) it
-        else it + findKotlinStdlibClasspath(project) + findKotlinScriptRuntimeClasspath(project) + findKotlinReflectClasspath(project)
+        else it + findKotlinCompilerClasspath(project)
     }
+
+internal fun findKotlinCompilerClasspath(project: Project): List<File> {
+    return findKotlinStdlibClasspath(project) +
+            findKotlinScriptRuntimeClasspath(project) +
+            findKotlinReflectClasspath(project) +
+            findTrove4J(project)
+}
+
+internal fun findTrove4J(project: Project): List<File> =
+    findKotlinModuleJar(project, TROVE4J_EXPECTED_CLASS, TROVE4J)
 
 internal fun findKotlinStdlibClasspath(project: Project): List<File> =
     findKotlinModuleJar(project, KOTLIN_STDLIB_EXPECTED_CLASS, KOTLIN_STDLIB)
