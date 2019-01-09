@@ -456,11 +456,12 @@ class FirRenderer(builder: StringBuilder) : FirVisitorVoid() {
     private fun ConeKotlinType.asString(): String {
         return when (this) {
             is ConeKotlinErrorType -> "error: $reason"
+            is ConeClassErrorType -> "error: $reason"
             is ConeClassLikeType -> {
                 val sb = StringBuilder()
                 sb.append(symbol.classId.asString())
                 if (typeArguments.isNotEmpty()) {
-                    sb.append(typeArguments.joinToString(prefix = "<", postfix = ">") { it ->
+                    sb.append(typeArguments.joinToString(prefix = "<", postfix = ">") {
                         when (it) {
                             StarProjection -> "*"
                             is ConeKotlinTypeProjectionIn -> "in ${it.type.asString()}"

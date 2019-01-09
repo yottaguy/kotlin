@@ -54,9 +54,11 @@ class ConeKotlinErrorType(val reason: String) : ConeKotlinType() {
     }
 }
 
-class ConeClassErrorType(val reason: String) : ConeClassLikeType() {
+class ConeClassErrorType(val reason: String, symbol: ConeClassLikeSymbol? = null) : ConeClassLikeType() {
+    private val storedSymbol = symbol
+
     override val symbol: ConeClassLikeSymbol
-        get() = error("!")
+        get() = storedSymbol ?: error("!")
 
     override val typeArguments: Array<out ConeKotlinTypeProjection>
         get() = EMPTY_ARRAY

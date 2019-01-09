@@ -1,0 +1,5 @@
+FILE: fakeRecursiveSupertype.kt
+    public final class My : R|error: Unresolved imported symbol: incorrect/directory/My| {
+        public constructor(): super<R|error: Unresolved imported symbol: incorrect/directory/My|>()
+
+    }

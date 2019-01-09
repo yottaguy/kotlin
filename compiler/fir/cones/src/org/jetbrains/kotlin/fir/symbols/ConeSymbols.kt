@@ -12,6 +12,8 @@ import org.jetbrains.kotlin.name.Name
 
 interface ConeSymbol
 
+interface ConeUnresolvedSymbol : ConeSymbol
+
 interface ConeTypeParameterSymbol : ConeSymbol {
     val name: Name
 }

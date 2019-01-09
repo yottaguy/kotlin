@@ -54,6 +54,10 @@ class FirImportResolveTransformer : FirTransformer<Nothing?>() {
                     return FirResolvedImportImpl(import, resolvedFqName).compose()
                 }
             }
+            // By default, we return resolved import with the longest package name
+            return FirResolvedImportImpl(
+                import, ClassId(fqName.parent(), FqName(fqName.shortName().asString()), false)
+            ).compose()
         }
         return import.compose()
     }

@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.fir.resolve.impl
 
-import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.resolve.FirQualifierResolver
 import org.jetbrains.kotlin.fir.resolve.FirTypeResolver
@@ -21,12 +20,12 @@ class FirTypeResolverImpl : FirTypeResolver {
 
 
     private fun List<FirQualifierPart>.toTypeProjections() = flatMap {
-        it.typeArguments.map {
-            when (it) {
+        it.typeArguments.map { typeArgument ->
+            when (typeArgument) {
                 is FirStarProjection -> StarProjection
                 is FirTypeProjectionWithVariance -> {
-                    val type = (it.type as FirResolvedType).type
-                    when (it.variance) {
+                    val type = (typeArgument.type as FirResolvedType).type
+                    when (typeArgument.variance) {
                         Variance.INVARIANT -> type
                         Variance.IN_VARIANCE -> ConeKotlinTypeProjectionIn(type)
                         Variance.OUT_VARIANCE -> ConeKotlinTypeProjectionOut(type)
@@ -51,6 +50,13 @@ class FirTypeResolverImpl : FirTypeResolver {
                     abbreviationSymbol = this as ConeClassLikeSymbol,
                     typeArguments = parts.toTypeProjections(),
                     directExpansion = expansionType ?: ConeClassErrorType("Unresolved expansion")
+                )
+            }
+            is ConeUnresolvedSymbol -> {
+                val classLikeSymbol = this as? ConeClassLikeSymbol
+                ConeClassErrorType(
+                    symbol = classLikeSymbol,
+                    reason = classLikeSymbol?.let { "Unresolved imported symbol: ${it.classId}" } ?: "Unknown unresolved symbol"
                 )
             }
             else -> error("!")
@@ -131,7 +137,7 @@ class FirTypeResolverImpl : FirTypeResolver {
             is FirFunctionType -> {
                 ConeFunctionTypeImpl(
                     (type.receiverType as FirResolvedType?)?.type,
-                    type.valueParameters.map { it.returnType.coneTypeUnsafe<ConeKotlinType>() },
+                    type.valueParameters.map { it.returnType.coneTypeUnsafe() },
                     type.returnType.coneTypeUnsafe()
                 )
             }
