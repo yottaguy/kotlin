@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
+ * Copyright 2010-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
  * that can be found in the license/LICENSE.txt file.
  */
 
@@ -1383,6 +1383,22 @@ class ArraysTest {
         }
     }
 
+    @Test fun sortStable() {
+        val keyRange = 'A'..'D'
+        for (size in listOf(10, 100, 2000)) {
+            val keys = List(size) { keyRange.random() }
+            val array = keys.mapIndexed { index, k -> Sortable(k, index) }.toTypedArray()
+
+            array.sortedArray().assertSorted()
+            array.sortedArrayDescending().assertSorted(descending = true)
+
+            array.sort()
+            array.assertSorted()
+            array.sortDescending()
+            array.assertSorted(descending = true)
+        }
+    }
+
     @Test fun sortByInPlace() {
         val data = arrayOf("aa" to 20, "ab" to 3, "aa" to 3)
         data.sortBy { it.second }
@@ -1400,6 +1416,23 @@ class ArraysTest {
         val indices = values.indices.toList().toIntArray()
 
         assertEquals(listOf(1, 2, 0), indices.sortedBy { values[it] })
+    }
+
+    @Test fun sortByStable() {
+        val keyRange = 'A'..'D'
+        for (size in listOf(10, 100, 2000)) {
+            val keys = List(size) { keyRange.random() }
+            val array = keys.mapIndexed { index, k -> Sortable(k, index) }.toTypedArray()
+
+            array.sortedBy { it.key }.iterator().assertSorted()
+            array.sortedByDescending { it.key }.iterator().assertSorted(descending = true)
+
+            array.sortBy { it.key }
+            array.assertSorted()
+
+            array.sortByDescending { it.key }
+            array.assertSorted(descending = true)
+        }
     }
 
     @Test fun sortedNullableBy() {
@@ -1425,6 +1458,20 @@ class ArraysTest {
         val array = Array(6) { it }
         array.sortWith(comparator)
         array.iterator().assertSorted { a, b -> comparator.compare(a, b) <= 0 }
+    }
+}
+
+private data class Sortable<K : Comparable<K>>(val key: K, val index: Int) : Comparable<Sortable<K>> {
+    override fun compareTo(other: Sortable<K>): Int = this.key.compareTo(other.key)
+}
+
+private fun <K : Comparable<K>> Array<out Sortable<K>>.assertSorted(descending: Boolean = false) =
+    iterator().assertSorted(descending = descending)
+
+private fun <K : Comparable<K>> Iterator<Sortable<K>>.assertSorted(descending: Boolean = false) {
+    assertSorted { a, b ->
+        val relation = a.key.compareTo(b.key)
+        (if (descending) relation > 0 else relation < 0) || relation == 0 && a.index < b.index
     }
 }
 
