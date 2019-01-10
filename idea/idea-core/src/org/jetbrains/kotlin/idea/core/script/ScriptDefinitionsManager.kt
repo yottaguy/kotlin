@@ -300,9 +300,7 @@ class BundledKotlinScriptDependenciesResolver(private val project: Project) : De
 
         val javaHome = getScriptSDK(project, virtualFile)
 
-        var classpath = with(PathUtil.kotlinPathsForIdeaPlugin) {
-            listOf(reflectPath, stdlibPath, scriptRuntimePath)
-        }
+        var classpath = PathUtil.kotlinPathsForIdeaPlugin.compilerClasspath
         if (ScratchFileService.getInstance().getRootType(virtualFile) is IdeConsoleRootType) {
             classpath = scriptCompilationClasspathFromContextOrStlib(wholeClasspath = true) + classpath
         }

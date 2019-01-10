@@ -50,7 +50,7 @@ open class KotlinJvmReplService(
 ) : ReplCompileAction, ReplCheckAction, CreateReplStageStateAction {
 
     protected val configuration = CompilerConfiguration().apply {
-        addJvmClasspathRoots(PathUtil.kotlinPathsForCompiler.let { listOf(it.stdlibPath, it.reflectPath, it.scriptRuntimePath) })
+        addJvmClasspathRoots(PathUtil.kotlinPathsForCompiler.let { it.compilerClasspath })
         addJvmClasspathRoots(templateClasspath)
         put(CommonConfigurationKeys.MODULE_NAME, "kotlin-script")
         languageVersionSettings = LanguageVersionSettingsImpl(

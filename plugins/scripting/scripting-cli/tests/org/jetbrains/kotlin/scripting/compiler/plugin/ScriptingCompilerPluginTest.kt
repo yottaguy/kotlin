@@ -41,8 +41,7 @@ class ScriptingCompilerPluginTest : TestCaseWithTmpdir() {
         paths
     }
 
-    val compilerClasspath = listOf(kotlinPaths.compilerPath)
-    val runtimeClasspath = listOf( kotlinPaths.stdlibPath, kotlinPaths.scriptRuntimePath, kotlinPaths.reflectPath)
+    val runtimeClasspath = kotlinPaths.compilerClasspath
     val scriptingClasspath = listOf("kotlin-scripting-common.jar").map { File(kotlinPaths.libPath, it) }
 
     private fun createEnvironment(
