@@ -1206,7 +1206,7 @@ public actual fun CharArray.sort(): Unit {
  * Sorts the array in-place according to the natural order of its elements.
  */
 public actual fun <T : Comparable<T>> Array<out T>.sort(): Unit {
-    if (size > 1) sortArrayWith(this, naturalOrder())
+    if (size > 1) sortArray(this)
 }
 
 /**

@@ -884,7 +884,7 @@ object ArrayOps : TemplateGroupBase() {
         returns("Unit")
         on(Platform.JS) {
             body {
-                """if (size > 1) sortArrayWith(this, naturalOrder())"""
+                """if (size > 1) sortArray(this)"""
             }
             specialFor(ArraysOfPrimitives) {
                 if (primitive != PrimitiveType.Long) {

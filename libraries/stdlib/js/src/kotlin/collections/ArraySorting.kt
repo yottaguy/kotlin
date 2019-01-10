@@ -5,29 +5,40 @@
 
 package kotlin.collections
 
-internal fun <T> sortArrayWith(array: Array<out T>, comparison: (T, T) -> Int): Unit {
+internal fun <T> sortArrayWith(array: Array<out T>, comparison: (T, T) -> Int) {
     if (stableSortingIsSupported) {
         array.asDynamic().sort(comparison)
     } else {
+        @Suppress("UNCHECKED_CAST")
         mergeSort(array as Array<T>, 0, array.lastIndex, Comparator(comparison))
     }
 }
 
-internal fun <T> sortArrayWith(array: Array<out T>, comparator: Comparator<in T>): Unit {
+internal fun <T> sortArrayWith(array: Array<out T>, comparator: Comparator<in T>) {
     if (stableSortingIsSupported) {
         val comparison = { a: T, b: T -> comparator.compare(a, b) }
         array.asDynamic().sort(comparison)
     } else {
+        @Suppress("UNCHECKED_CAST")
         mergeSort(array as Array<T>, 0, array.lastIndex, comparator)
     }
 }
 
+internal fun <T : Comparable<T>> sortArray(array: Array<out T>) {
+    if (stableSortingIsSupported) {
+        val comparison = { a: T, b: T -> a.compareTo(b) }
+        array.asDynamic().sort(comparison)
+    } else {
+        @Suppress("UNCHECKED_CAST")
+        mergeSort(array as Array<T>, 0, array.lastIndex, naturalOrder())
+    }
+}
+
 private val stableSortingIsSupported: Boolean by lazy isStable@{
-    val keys = 0..3
     val array = js("[]").unsafeCast<Array<Int>>()
     // known implementations may use stable sort for arrays of up to 512 elements
     // so we create slightly more elements to test stability
-    for (index in 0 until 600) array.asDynamic().push(index * 4 + keys.random())
+    for (index in 0 until 600) array.asDynamic().push(index * 4 + kotlin.random.Random.nextInt(4))
     val comparison = { a: Int, b: Int -> (a and 3) - (b and 3) }
     array.asDynamic().sort(comparison)
     for (index in 1 until array.size) {
