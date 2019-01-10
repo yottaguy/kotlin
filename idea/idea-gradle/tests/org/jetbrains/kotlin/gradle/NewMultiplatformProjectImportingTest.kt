@@ -24,12 +24,10 @@ import org.junit.runners.Parameterized
 
 class NewMultiplatformProjectImportingTest : GradleImportingTestCase() {
     private val kotlinVersion = "1.3.0-rc-146"
-    private lateinit var sdkCreationChecker : KotlinSdkCreationChecker
 
     @Before
     fun saveSdksBeforeTest() {
-        sdkCreationChecker = KotlinSdkCreationChecker()
-        val kotlinSdks = sdkCreationChecker.getKotlinSdks()
+        val kotlinSdks = sdkCreationChecker?.getKotlinSdks() ?: emptyList()
         if (kotlinSdks.isNotEmpty()) {
             ExternalSystemImportingTestCase.fail("Kotlin SDK was not found after import of MPP Project. Sdk list: $kotlinSdks")
         }
@@ -37,10 +35,9 @@ class NewMultiplatformProjectImportingTest : GradleImportingTestCase() {
 
     @After
     fun checkSdkCreated() {
-        if (!sdkCreationChecker.isKotlinSdkCreated()) {
+        if (sdkCreationChecker?.isKotlinSdkCreated() == false) {
             ExternalSystemImportingTestCase.fail("Kotlin SDK was not created during import of MPP Project.")
         }
-        sdkCreationChecker.removeNewKotlinSdk()
     }
 
 
