@@ -54,6 +54,11 @@ public class FirResolveTestCaseGenerated extends AbstractFirResolveTestCase {
         runTest("compiler/fir/resolve/testData/resolve/fakeRecursiveSupertype.kt");
     }
 
+    @TestMetadata("fakeRecursiveTypealias.kt")
+    public void testFakeRecursiveTypealias() throws Exception {
+        runTest("compiler/fir/resolve/testData/resolve/fakeRecursiveTypealias.kt");
+    }
+
     @TestMetadata("ft.kt")
     public void testFt() throws Exception {
         runTest("compiler/fir/resolve/testData/resolve/ft.kt");

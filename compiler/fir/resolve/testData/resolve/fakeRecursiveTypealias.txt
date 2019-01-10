@@ -1,0 +1,2 @@
+FILE: fakeRecursiveTypealias.kt
+    public final typealias My = R|error: Symbol not found|
