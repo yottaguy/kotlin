@@ -5,18 +5,14 @@
 
 package org.jetbrains.kotlin.gradle
 
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.projectRoots.ProjectJdkTable
-import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.*
 import org.jetbrains.jps.model.java.JavaResourceRootType
 import org.jetbrains.jps.model.java.JavaSourceRootType
 import org.jetbrains.kotlin.config.JvmTarget
 import org.jetbrains.kotlin.config.KotlinResourceRootType
 import org.jetbrains.kotlin.config.KotlinSourceRootType
+import org.jetbrains.kotlin.idea.codeInsight.gradle.ExternalSystemImportingTestCase
 import org.jetbrains.kotlin.idea.codeInsight.gradle.GradleImportingTestCase
-import org.jetbrains.kotlin.idea.framework.KotlinSdkType
-import org.jetbrains.kotlin.idea.util.application.runWriteAction
 import org.jetbrains.kotlin.platform.impl.CommonIdePlatformKind
 import org.jetbrains.kotlin.platform.impl.JsIdePlatformKind
 import org.jetbrains.kotlin.platform.impl.JvmIdePlatformKind
@@ -28,34 +24,23 @@ import org.junit.runners.Parameterized
 
 class NewMultiplatformProjectImportingTest : GradleImportingTestCase() {
     private val kotlinVersion = "1.3.0-rc-146"
-
-    private lateinit var sdksBeforeTest : Array<Sdk>
-
-    private fun hasKotlinSdk() = ProjectJdkTable.getInstance().allJdks.any { it.sdkType is KotlinSdkType }
+    private lateinit var sdkCreationChecker : KotlinSdkCreationChecker
 
     @Before
     fun saveSdksBeforeTest() {
-        sdksBeforeTest = ProjectJdkTable.getInstance().allJdks
-        // make sure that we have no Kotlin SDK before import
-        if (hasKotlinSdk()) {
-            fail("Found Kotlin SDK before start of importing test. Sdk list: $sdksBeforeTest")
+        sdkCreationChecker = KotlinSdkCreationChecker()
+        val kotlinSdks = sdkCreationChecker.getKotlinSdks()
+        if (kotlinSdks.isNotEmpty()) {
+            ExternalSystemImportingTestCase.fail("Kotlin SDK was not found after import of MPP Project. Sdk list: $kotlinSdks")
         }
     }
 
     @After
-    fun restoreSdksAfterTest() {
-        val jdkTable = ProjectJdkTable.getInstance()
-
-        if (! hasKotlinSdk()) {
-            fail("Kotlin SDK was not found after import of MPP Project. Sdk list: ${jdkTable.allJdks}")
+    fun checkSdkCreated() {
+        if (!sdkCreationChecker.isKotlinSdkCreated()) {
+            ExternalSystemImportingTestCase.fail("Kotlin SDK was not created during import of MPP Project.")
         }
-
-        // make sure that Kotlin SDK was added during import of MPP project
-        ApplicationManager.getApplication().invokeAndWait {
-            runWriteAction {
-                jdkTable.allJdks.filter { !sdksBeforeTest.contains(it) }.forEach { jdkTable.removeJdk(it) }
-            }
-        }
+        sdkCreationChecker.removeNewKotlinSdk()
     }
 
 
