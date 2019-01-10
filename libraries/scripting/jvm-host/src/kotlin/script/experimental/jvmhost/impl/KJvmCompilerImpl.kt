@@ -11,6 +11,7 @@ import com.intellij.openapi.vfs.CharsetToolkit
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.impl.PsiFileFactoryImpl
 import com.intellij.testFramework.LightVirtualFile
+import org.jetbrains.kotlin.analyzer.AnalysisResult
 import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
 import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.cli.common.arguments.parseCommandLineArguments
@@ -22,13 +23,13 @@ import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.cli.common.setupCommonArguments
 import org.jetbrains.kotlin.cli.jvm.*
 import org.jetbrains.kotlin.cli.jvm.compiler.*
-import org.jetbrains.kotlin.cli.jvm.config.JvmClasspathRoot
 import org.jetbrains.kotlin.cli.jvm.config.addJvmClasspathRoots
 import org.jetbrains.kotlin.codegen.ClassBuilderFactories
 import org.jetbrains.kotlin.codegen.CompilationErrorHandler
 import org.jetbrains.kotlin.codegen.KotlinCodegenFacade
 import org.jetbrains.kotlin.codegen.state.GenerationState
 import org.jetbrains.kotlin.config.CommonConfigurationKeys
+import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.JVMConfigurationKeys
 import org.jetbrains.kotlin.config.languageVersionSettings
 import org.jetbrains.kotlin.idea.KotlinFileType
@@ -39,11 +40,12 @@ import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtScript
 import org.jetbrains.kotlin.script.KotlinScriptDefinition
 import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
-import java.io.File
 import java.util.*
+import kotlin.collections.HashMap
 import kotlin.reflect.KClass
 import kotlin.reflect.KType
 import kotlin.reflect.full.starProjectedType
+import kotlin.script.dependencies.ScriptContents
 import kotlin.script.experimental.api.*
 import kotlin.script.experimental.dependencies.DependenciesResolver
 import kotlin.script.experimental.host.ScriptingHostConfiguration
@@ -74,89 +76,54 @@ class KJvmCompilerImpl(val hostConfiguration: ScriptingHostConfiguration) : KJvm
                 message.asErrorDiagnostics(path = script.locationId)
             )
 
+        fun SourceCode.scriptFileName(): String = when {
+            name != null -> name!!
+            script == this -> "script.${scriptCompilationConfiguration[ScriptCompilationConfiguration.fileExtension]}"
+            else -> throw Exception("Unexpected script without name: $this")
+        }
+
+        val disposable = Disposer.newDisposable()
+
         try {
             setIdeaIoUseFallback()
 
             var environment: KotlinCoreEnvironment? = null
-            var updatedConfiguration = scriptCompilationConfiguration
+            val knownSources = arrayListOf(script)
+            val updatedConfigurations = HashMap<SourceCode, ScriptCompilationConfiguration>()
 
-            fun updateClasspath(classpath: List<File>) {
-                environment!!.updateClasspath(classpath.map(::JvmClasspathRoot))
-                if (classpath.isNotEmpty()) {
-                    updatedConfiguration = ScriptCompilationConfiguration(updatedConfiguration) {
-                        dependencies.append(JvmDependency(classpath))
-                    }
+            fun updateConfiguration(script: SourceCode, updatedConfiguration: ScriptCompilationConfiguration) {
+                updatedConfigurations[script] = updatedConfiguration
+            }
+
+            fun getScriptSource(scriptContents: ScriptContents): SourceCode? {
+                val name = scriptContents.file?.name
+                return knownSources.find {
+                    // TODO: consider using merged text (likely should be cached)
+                    // on the other hand it may become obsolete when scripting internals will be redesigned properly
+                    (name != null && name == it.scriptFileName()) || it.text == scriptContents.text
                 }
             }
 
-            val disposable = Disposer.newDisposable()
+            fun getScriptConfiguration(ktFile: KtFile): ScriptCompilationConfiguration =
+                knownSources.find { ktFile.name == it.name }?.let {
+                    updatedConfigurations[it]
+                } ?: scriptCompilationConfiguration
 
-            val baseArguments = K2JVMCompilerArguments()
-            parseCommandLineArguments(
-                scriptCompilationConfiguration[ScriptCompilationConfiguration.compilerOptions] ?: emptyList(),
-                baseArguments
-            )
-
-            val kotlinCompilerConfiguration = org.jetbrains.kotlin.config.CompilerConfiguration().apply {
-
-                put(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY, messageCollector)
-                setupCommonArguments(baseArguments)
-
-                setupJvmSpecificArguments(baseArguments)
-
-                val jdkHomeFromConfigurations = updatedConfiguration.getNoDefault(ScriptCompilationConfiguration.jvm.jdkHome)
-                    ?: hostConfiguration[ScriptingHostConfiguration.jvm.jdkHome]
-                if (jdkHomeFromConfigurations != null) {
-                    messageCollector.report(CompilerMessageSeverity.LOGGING, "Using JDK home directory $jdkHomeFromConfigurations")
-                    put(JVMConfigurationKeys.JDK_HOME, jdkHomeFromConfigurations)
-                } else {
-                    configureJdkHome(baseArguments)
-                }
-
+            val kotlinCompilerConfiguration = createInitialCompilerConfiguration(scriptCompilationConfiguration, messageCollector).apply {
                 add(
                     JVMConfigurationKeys.SCRIPT_DEFINITIONS,
-                    BridgeScriptDefinition(scriptCompilationConfiguration, hostConfiguration, ::updateClasspath)
+                    BridgeScriptDefinition(scriptCompilationConfiguration, hostConfiguration, ::updateConfiguration, ::getScriptSource)
                 )
-                put(JVMConfigurationKeys.RETAIN_OUTPUT_IN_MEMORY, true)
-
-                val isModularJava = isModularJava()
-
-                updatedConfiguration[ScriptCompilationConfiguration.dependencies]?.let { dependencies ->
-                    addJvmClasspathRoots(
-                        dependencies.flatMap {
-                            (it as JvmDependency).classpath
-                        }
-                    )
-                }
-
-                configureExplicitContentRoots(baseArguments)
-
-                if (!baseArguments.noStdlib) {
-                    addModularRootIfNotNull(isModularJava, "kotlin.stdlib", KotlinJars.stdlib)
-                    addModularRootIfNotNull(isModularJava, "kotlin.script.runtime", KotlinJars.scriptRuntimeOrNull)
-                }
-                // see comments about logic in CompilerConfiguration.configureStandardLibs
-                if (!baseArguments.noReflect && !baseArguments.noStdlib) {
-                    addModularRootIfNotNull(isModularJava, "kotlin.reflect", KotlinJars.reflectOrNull)
-                }
-
-                put(CommonConfigurationKeys.MODULE_NAME, baseArguments.moduleName ?: "kotlin-script")
-
-                configureAdvancedJvmOptions(baseArguments)
             }
+
             environment = KotlinCoreEnvironment.createForProduction(
-                disposable,
-                kotlinCompilerConfiguration,
-                EnvironmentConfigFiles.JVM_CONFIG_FILES
+                disposable, kotlinCompilerConfiguration, EnvironmentConfigFiles.JVM_CONFIG_FILES
             )
 
-            val analyzerWithCompilerReport = AnalyzerWithCompilerReport(messageCollector, environment.configuration.languageVersionSettings)
-
             val psiFileFactory: PsiFileFactoryImpl = PsiFileFactory.getInstance(environment.project) as PsiFileFactoryImpl
-            val scriptText = getMergedScriptText(script, updatedConfiguration)
-            val scriptFileName = script.name ?: "script.${updatedConfiguration[ScriptCompilationConfiguration.fileExtension]}"
+            val scriptText = getMergedScriptText(script, scriptCompilationConfiguration)
             val virtualFile = LightVirtualFile(
-                scriptFileName,
+                script.scriptFileName(),
                 KotlinLanguage.INSTANCE,
                 StringUtil.convertLineSeparators(scriptText)
             ).apply {
@@ -174,67 +141,183 @@ class KJvmCompilerImpl(val hostConfiguration: ScriptingHostConfiguration) : KJvm
             kotlinCompilerConfiguration.addJvmClasspathRoots(classpath)
             sourceFiles.addAll(newSources)
 
-            analyzerWithCompilerReport.analyzeAndReport(sourceFiles) {
-                val project = environment.project
-                TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(
-                    project,
-                    sourceFiles,
-                    NoScopeRecordCliBindingTrace(),
-                    environment.configuration,
-                    environment::createPackagePartProvider
-                )
-            }
-            val analysisResult = analyzerWithCompilerReport.analysisResult
+            // collectScriptsCompilationDependencies calls resolver for every file, so at this point all updated configurations are collected
+            updateCompilerConfiguration(environment, scriptCompilationConfiguration, updatedConfigurations)
+
+            val analysisResult = analyze(sourceFiles, environment)
 
             if (!analysisResult.shouldGenerateCode) return failure("no code to generate")
             if (analysisResult.isError() || messageCollector.hasErrors()) return failure()
 
-            val generationState = GenerationState.Builder(
-                psiFile.project,
-                ClassBuilderFactories.BINARIES,
-                analysisResult.moduleDescriptor,
-                analysisResult.bindingContext,
-                sourceFiles,
-                kotlinCompilerConfiguration
-            ).build()
+            val generationState = generate(analysisResult, sourceFiles, kotlinCompilerConfiguration)
 
-            KotlinCodegenFacade.compileCorrectFiles(generationState, CompilationErrorHandler.THROW_EXCEPTION)
-
-            val scriptDependenciesStack = ArrayDeque<KtScript>()
-
-            fun makeOtherScripts(script: KtScript): List<KJvmCompiledScript<*>> {
-
-                // TODO: ensure that it is caught earlier (as well) since it would be more economical
-                if (scriptDependenciesStack.contains(script))
-                    throw IllegalArgumentException("Unable to handle recursive script dependencies")
-                scriptDependenciesStack.push(script)
-
-                val containingKtFile = script.containingKtFile
-                val otherScripts: List<KJvmCompiledScript<*>> =
-                    sourceDependencies.find { it.scriptFile == containingKtFile }?.sourceDependencies?.mapNotNull { sourceFile ->
-                        sourceFile.declarations.firstIsInstanceOrNull<KtScript>()?.let {
-                            KJvmCompiledScript<Any>(
-                                containingKtFile.virtualFile?.path, updatedConfiguration, it.fqName.asString(), makeOtherScripts(it)
-                            )
-                        }
-                    } ?: emptyList()
-
-                scriptDependenciesStack.pop()
-                return otherScripts
-            }
-
-            val compiledScript = KJvmCompiledScript<Any>(
-                script.locationId,
-                updatedConfiguration,
-                ktScript.fqName.asString(),
-                makeOtherScripts(ktScript),
-                KJvmCompiledModule(generationState)
-            )
+            val compiledScript = makeCompiledScript(generationState, script, ktScript, sourceDependencies, ::getScriptConfiguration)
 
             return ResultWithDiagnostics.Success(compiledScript, messageCollector.diagnostics)
         } catch (ex: Throwable) {
             return failure(ex.asDiagnostics(path = script.locationId))
+        } finally {
+            disposable.dispose()
         }
+    }
+
+    private fun createInitialCompilerConfiguration(
+        scriptCompilationConfiguration: ScriptCompilationConfiguration,
+        messageCollector: MessageCollector
+    ): CompilerConfiguration {
+
+        val baseArguments = K2JVMCompilerArguments()
+        parseCommandLineArguments(
+            scriptCompilationConfiguration[ScriptCompilationConfiguration.compilerOptions] ?: emptyList(),
+            baseArguments
+        )
+
+        return org.jetbrains.kotlin.config.CompilerConfiguration().apply {
+
+            put(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY, messageCollector)
+            setupCommonArguments(baseArguments)
+
+            setupJvmSpecificArguments(baseArguments)
+
+            val jdkHomeFromConfigurations = scriptCompilationConfiguration.getNoDefault(ScriptCompilationConfiguration.jvm.jdkHome)
+                ?: hostConfiguration[ScriptingHostConfiguration.jvm.jdkHome]
+            if (jdkHomeFromConfigurations != null) {
+                messageCollector.report(CompilerMessageSeverity.LOGGING, "Using JDK home directory $jdkHomeFromConfigurations")
+                put(JVMConfigurationKeys.JDK_HOME, jdkHomeFromConfigurations)
+            } else {
+                configureJdkHome(baseArguments)
+            }
+
+            put(JVMConfigurationKeys.RETAIN_OUTPUT_IN_MEMORY, true)
+
+            val isModularJava = isModularJava()
+
+            scriptCompilationConfiguration[ScriptCompilationConfiguration.dependencies]?.let { dependencies ->
+                addJvmClasspathRoots(
+                    dependencies.flatMap {
+                        (it as JvmDependency).classpath
+                    }
+                )
+            }
+
+            configureExplicitContentRoots(baseArguments)
+
+            if (!baseArguments.noStdlib) {
+                addModularRootIfNotNull(isModularJava, "kotlin.stdlib", KotlinJars.stdlib)
+                addModularRootIfNotNull(isModularJava, "kotlin.script.runtime", KotlinJars.scriptRuntimeOrNull)
+            }
+            // see comments about logic in CompilerConfiguration.configureStandardLibs
+            if (!baseArguments.noReflect && !baseArguments.noStdlib) {
+                addModularRootIfNotNull(isModularJava, "kotlin.reflect", KotlinJars.reflectOrNull)
+            }
+
+            put(CommonConfigurationKeys.MODULE_NAME, baseArguments.moduleName ?: "kotlin-script")
+
+            configureAdvancedJvmOptions(baseArguments)
+        }
+    }
+
+    private fun updateCompilerConfiguration(
+        environment: KotlinCoreEnvironment,
+        scriptCompilationConfiguration: ScriptCompilationConfiguration,
+        updatedConfigurations: HashMap<SourceCode, ScriptCompilationConfiguration>
+    ) {
+        val updatedCompilerOptions =
+            updatedConfigurations.flatMap { it.value[ScriptCompilationConfiguration.compilerOptions] ?: emptyList() }
+        if (updatedCompilerOptions.isNotEmpty() &&
+            updatedCompilerOptions != scriptCompilationConfiguration[ScriptCompilationConfiguration.compilerOptions]
+        ) {
+
+            val updatedArguments = K2JVMCompilerArguments()
+            parseCommandLineArguments(
+                scriptCompilationConfiguration[ScriptCompilationConfiguration.compilerOptions] ?: emptyList(),
+                updatedArguments
+            )
+
+            environment.configuration.apply {
+                setupCommonArguments(updatedArguments)
+
+                setupJvmSpecificArguments(updatedArguments)
+
+                configureAdvancedJvmOptions(updatedArguments)
+            }
+        }
+    }
+
+    private fun analyze(sourceFiles: Collection<KtFile>, environment: KotlinCoreEnvironment): AnalysisResult {
+        val messageCollector = environment.configuration[CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY]!!
+
+        val analyzerWithCompilerReport = AnalyzerWithCompilerReport(messageCollector, environment.configuration.languageVersionSettings)
+
+        analyzerWithCompilerReport.analyzeAndReport(sourceFiles) {
+            val project = environment.project
+            TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(
+                project,
+                sourceFiles,
+                NoScopeRecordCliBindingTrace(),
+                environment.configuration,
+                environment::createPackagePartProvider
+            )
+        }
+        return analyzerWithCompilerReport.analysisResult
+    }
+
+    private fun generate(
+        analysisResult: AnalysisResult, sourceFiles: List<KtFile>, kotlinCompilerConfiguration: CompilerConfiguration
+    ): GenerationState {
+        val generationState = GenerationState.Builder(
+            sourceFiles.first().project,
+            ClassBuilderFactories.BINARIES,
+            analysisResult.moduleDescriptor,
+            analysisResult.bindingContext,
+            sourceFiles,
+            kotlinCompilerConfiguration
+        ).build()
+
+        KotlinCodegenFacade.compileCorrectFiles(generationState, CompilationErrorHandler.THROW_EXCEPTION)
+        return generationState
+    }
+
+    private fun makeCompiledScript(
+        generationState: GenerationState,
+        script: SourceCode,
+        ktScript: KtScript,
+        sourceDependencies: List<ScriptsCompilationDependencies.SourceDependencies>,
+        getScriptConfiguration: (KtFile) -> ScriptCompilationConfiguration
+    ): KJvmCompiledScript<Any> {
+        val scriptDependenciesStack = ArrayDeque<KtScript>()
+
+        fun makeOtherScripts(script: KtScript): List<KJvmCompiledScript<*>> {
+
+            // TODO: ensure that it is caught earlier (as well) since it would be more economical
+            if (scriptDependenciesStack.contains(script))
+                throw IllegalArgumentException("Unable to handle recursive script dependencies")
+            scriptDependenciesStack.push(script)
+
+            val containingKtFile = script.containingKtFile
+            val otherScripts: List<KJvmCompiledScript<*>> =
+                sourceDependencies.find { it.scriptFile == containingKtFile }?.sourceDependencies?.mapNotNull { sourceFile ->
+                    sourceFile.declarations.firstIsInstanceOrNull<KtScript>()?.let {
+                        KJvmCompiledScript<Any>(
+                            containingKtFile.virtualFile?.path,
+                            getScriptConfiguration(sourceFile),
+                            it.fqName.asString(),
+                            makeOtherScripts(it)
+                        )
+                    }
+                } ?: emptyList()
+
+            scriptDependenciesStack.pop()
+            return otherScripts
+        }
+
+        return KJvmCompiledScript(
+            script.locationId,
+            getScriptConfiguration(ktScript.containingKtFile),
+            ktScript.fqName.asString(),
+            makeOtherScripts(ktScript),
+            KJvmCompiledModule(generationState)
+        )
     }
 }
 
@@ -279,7 +362,8 @@ internal class ScriptDiagnosticsMessageCollector : MessageCollector {
 internal class BridgeScriptDefinition(
     val scriptCompilationConfiguration: ScriptCompilationConfiguration,
     val hostConfiguration: ScriptingHostConfiguration,
-    updateClasspath: (List<File>) -> Unit
+    updateConfiguration: (SourceCode, ScriptCompilationConfiguration) -> Unit,
+    getScriptSource: (ScriptContents) -> SourceCode?
 ) : KotlinScriptDefinition(Any::class) {
 
     val baseClass: KClass<*> by lazy(LazyThreadSafetyMode.PUBLICATION) {
@@ -327,7 +411,7 @@ internal class BridgeScriptDefinition(
             .orEmpty()
 
     override val dependencyResolver: DependenciesResolver =
-        BridgeDependenciesResolver(scriptCompilationConfiguration, updateClasspath)
+        BridgeDependenciesResolver(scriptCompilationConfiguration, updateConfiguration, getScriptSource)
 
     private val scriptingClassGetter by lazy(LazyThreadSafetyMode.PUBLICATION) {
         hostConfiguration[ScriptingHostConfiguration.getScriptingClass]
