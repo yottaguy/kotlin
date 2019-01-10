@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1517
+// EXPECTED_REACHABLE_NODES: 1707
 
 class World() {
     public val items: ArrayList<Item> = ArrayList<Item>()

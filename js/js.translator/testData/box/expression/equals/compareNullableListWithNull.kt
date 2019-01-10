@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1515
+// EXPECTED_REACHABLE_NODES: 1705
 // KT-3518 Null pointer during null comparison in JS Backend
 package foo
 

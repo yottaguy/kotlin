@@ -1,6 +1,6 @@
 // LANGUAGE_VERSION: 1.3
 // IGNORE_BACKEND: JS_IR
-// EXPECTED_REACHABLE_NODES: 1566
+// EXPECTED_REACHABLE_NODES: 1786
 package foo
 
 fun testSize(expectedSize: Int, vararg i: UInt): Boolean {

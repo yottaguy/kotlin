@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1525
+// EXPECTED_REACHABLE_NODES: 1711
 package foo
 
 var global = ""

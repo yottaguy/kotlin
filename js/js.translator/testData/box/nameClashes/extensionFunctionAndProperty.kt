@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1524
+// EXPECTED_REACHABLE_NODES: 1710
 package foo
 
 public fun <T> List<T>.some(): T = this[0]

@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1230
+// EXPECTED_REACHABLE_NODES: 1391
 package foo
 
 open class Base(val bs: String) {

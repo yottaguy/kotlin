@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1250
+// EXPECTED_REACHABLE_NODES: 1452
 package foo
 
 val testString = "foobarbaz"

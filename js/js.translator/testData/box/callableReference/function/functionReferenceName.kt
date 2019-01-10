@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1221
+// EXPECTED_REACHABLE_NODES: 1382
 package foo
 
 import kotlin.reflect.KFunction

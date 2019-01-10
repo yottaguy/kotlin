@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1523
+// EXPECTED_REACHABLE_NODES: 1710
 
 //@library
 //@JsName("imulEmulated")

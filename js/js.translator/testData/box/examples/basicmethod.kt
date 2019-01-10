@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1535
+// EXPECTED_REACHABLE_NODES: 1722
 
 interface Tr {
     fun extra(): String = "_"

@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1548
+// EXPECTED_REACHABLE_NODES: 1734
 package foo
 
 fun sequenceFromFunctionWithInitialValue() {

@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1529
+// EXPECTED_REACHABLE_NODES: 1710
 
 // TODO remove stdlib dependency
 

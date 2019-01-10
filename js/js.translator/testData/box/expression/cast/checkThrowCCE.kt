@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1217
+// EXPECTED_REACHABLE_NODES: 1378
 package foo
 
 import kotlin.reflect.*
