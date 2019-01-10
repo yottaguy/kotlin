@@ -31,18 +31,20 @@ fun doFirResolveTestBench(firFiles: List<FirFile>, transformers: List<FirTransfo
 
     try {
         for (transformer in transformers) {
-            for (file in firFiles) {
+            for (firFile in firFiles) {
                 val time = measureNanoTime {
                     try {
-                        transformer.transformFile(file, null)
+                        transformer.transformFile(firFile, null)
                     } catch (e: Throwable) {
-                        println("Fail in file: ${(file.psi as KtFile).virtualFilePath}")
+                        val ktFile = firFile.psi as KtFile
+                        println("Fail in firFile: ${ktFile.virtualFilePath}")
+                        println(ktFile.text)
                         throw e
                     }
                 }
                 timePerTransformer.merge(transformer::class, time) { a, b -> a + b }
                 counterPerTransformer.merge(transformer::class, 1) { a, b -> a + b }
-                //totalLength += StringBuilder().apply { FirRenderer(this).visitFile(file) }.length
+                //totalLength += StringBuilder().apply { FirRenderer(this).visitFile(firFile) }.length
             }
         }
 
